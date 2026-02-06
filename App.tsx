@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { AppView, UserProgress, User, ExamRecord } from './types.ts';
 import { NAVIGATION_ITEMS, LEVELS } from './constants.tsx';
@@ -23,7 +24,8 @@ const App: React.FC = () => {
   });
 
   const [currentView, setCurrentView] = useState<AppView>(user ? AppView.DASHBOARD : AppView.AUTH);
-  const [progress, setProgress] = useState<UserProgress>({
+  
+  const defaultProgress: UserProgress = {
     xp: 0,
     level: 1,
     streak: 3,
@@ -31,7 +33,9 @@ const App: React.FC = () => {
     badges: [],
     isSupporter: false,
     examRecords: []
-  });
+  };
+
+  const [progress, setProgress] = useState<UserProgress>(defaultProgress);
 
   // Load user-specific progress when user changes
   useEffect(() => {
@@ -39,17 +43,16 @@ const App: React.FC = () => {
       try {
         const savedProgress = localStorage.getItem(`progress_${user.id}`);
         if (savedProgress) {
-          setProgress(JSON.parse(savedProgress));
-        } else {
+          const parsed = JSON.parse(savedProgress);
+          // Merge with defaults to ensure all arrays exist
           setProgress({
-            xp: 0,
-            level: 1,
-            streak: 1,
-            completedLessons: [],
-            badges: [],
-            isSupporter: false,
-            examRecords: []
+            ...defaultProgress,
+            ...parsed,
+            badges: Array.isArray(parsed.badges) ? parsed.badges : [],
+            examRecords: Array.isArray(parsed.examRecords) ? parsed.examRecords : []
           });
+        } else {
+          setProgress(defaultProgress);
         }
       } catch (e) {
         console.error("Failed to load progress", e);
@@ -75,14 +78,25 @@ const App: React.FC = () => {
   }, [progress, user]);
 
   const addXP = (amount: number) => {
-    setProgress(prev => ({ ...prev, xp: prev.xp + amount }));
+    setProgress(prev => {
+      const newXP = prev.xp + amount;
+      // Simple level up logic
+      let newLevel = prev.level;
+      if (newXP >= 5000) newLevel = 5;
+      else if (newXP >= 3000) newLevel = 4;
+      else if (newXP >= 1500) newLevel = 3;
+      else if (newXP >= 500) newLevel = 2;
+      
+      return { ...prev, xp: newXP, level: newLevel };
+    });
   };
 
   const saveExamResult = (record: ExamRecord) => {
     setProgress(prev => {
+      const updatedRecords = [record, ...(prev.examRecords || [])].slice(0, 50);
       return {
         ...prev,
-        examRecords: [record, ...prev.examRecords].slice(0, 50) // Keep last 50 attempts
+        examRecords: updatedRecords
       };
     });
   };
@@ -92,7 +106,7 @@ const App: React.FC = () => {
       ...prev,
       isSupporter: true,
       supportReference: reference,
-      badges: [...new Set([...prev.badges, 'SUPPORTER'])]
+      badges: [...new Set([...(prev.badges || []), 'SUPPORTER'])]
     }));
   };
 
@@ -141,7 +155,7 @@ const App: React.FC = () => {
               <h1 className="text-sm font-bold tracking-tight flex items-center gap-1 whitespace-nowrap">
                 Usher Academy Nurses French guide {progress.isSupporter && <span title="Supporter" className="text-xs">❤️</span>}
               </h1>
-              <p className="text-[10px] opacity-90 truncate">{user.college || 'Ghana Nursing Prep'}</p>
+              <p className="text-[10px] opacity-90 truncate">{user?.college || 'Ghana Nursing Prep'}</p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <div className="bg-emerald-700/50 px-1.5 py-0.5 rounded text-[10px] flex items-center gap-1">
