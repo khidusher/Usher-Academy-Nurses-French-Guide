@@ -1,5 +1,5 @@
 
-import { GoogleGenAI, Type, Modality } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 
 export const getGeminiResponse = async (prompt: string, systemInstruction: string) => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -12,23 +12,6 @@ export const getGeminiResponse = async (prompt: string, systemInstruction: strin
     },
   });
   return response.text;
-};
-
-export const getSpeech = async (text: string) => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash-preview-tts",
-    contents: [{ parts: [{ text: `Say clearly in a professional medical tone: ${text}` }] }],
-    config: {
-      responseModalities: [Modality.AUDIO],
-      speechConfig: {
-        voiceConfig: {
-          prebuiltVoiceConfig: { voiceName: 'Kore' },
-        },
-      },
-    },
-  });
-  return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
 };
 
 export const generateExamQuestions = async (topic: string) => {

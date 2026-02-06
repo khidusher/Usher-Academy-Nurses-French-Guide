@@ -14,6 +14,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, progress, setView, onLogout
   const currentWeekIdx = Math.min(Math.floor((progress?.completedLessons?.length || 0) / 2), 7);
   const currentWeek = WEEKLY_ROADMAP[currentWeekIdx];
 
+  // Simple rank simulation for dashboard
+  const userRank = progress.xp > 3000 ? 5 : progress.xp > 1500 ? 12 : 28;
+
   const handleLessonSelect = (idx: number) => {
     if (idx <= currentWeekIdx) {
       setView(AppView.VOCABULARY);
@@ -49,15 +52,20 @@ const Dashboard: React.FC<DashboardProps> = ({ user, progress, setView, onLogout
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100">
-          <p className="text-[10px] text-blue-600 font-bold uppercase mb-1">Vocabulary</p>
-          <p className="text-xl font-black">124 / 500</p>
-          <div className="w-full bg-blue-200 h-1 mt-2 rounded-full overflow-hidden">
-            <div className="bg-blue-500 h-full w-1/4 rounded-full" />
-          </div>
+        <div 
+          onClick={() => setView(AppView.LEADERBOARD)}
+          className="bg-blue-50 p-4 rounded-2xl border border-blue-100 cursor-pointer active:scale-95 transition-transform"
+        >
+          <p className="text-[10px] text-blue-600 font-bold uppercase mb-1 flex items-center gap-1">
+            <span>🏆</span> Leaderboard
+          </p>
+          <p className="text-xl font-black">Rank #{userRank}</p>
+          <p className="text-[9px] text-blue-400 font-bold mt-1 uppercase">Top 15% of Nurses</p>
         </div>
         <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
-          <p className="text-[10px] text-emerald-600 font-bold uppercase mb-1">Exam Prep</p>
+          <p className="text-[10px] text-emerald-600 font-bold uppercase mb-1 flex items-center gap-1">
+             <span>🎯</span> Progress
+          </p>
           <p className="text-xl font-black">{Math.floor(((progress?.completedLessons?.length || 0) / (WEEKLY_ROADMAP.length * 2)) * 100) || 0}%</p>
           <div className="w-full bg-emerald-200 h-1 mt-2 rounded-full overflow-hidden">
             <div 

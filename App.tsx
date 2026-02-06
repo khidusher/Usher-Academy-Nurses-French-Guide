@@ -113,7 +113,7 @@ const App: React.FC = () => {
       case AppView.VOCABULARY: return <Vocabulary addXP={addXP} setView={setCurrentView} />;
       case AppView.GRAMMAR: return <Grammar addXP={addXP} setView={setCurrentView} />;
       case AppView.EXAM_PRACTICE: return <ExamPractice addXP={addXP} setView={setCurrentView} />;
-      case AppView.LEADERBOARD: return <Leaderboard />;
+      case AppView.LEADERBOARD: return <Leaderboard user={user} progress={progress} />;
       case AppView.SUPPORT: return <Support progress={progress} onSupport={markAsSupporter} />;
       case AppView.PROFILE: return <Profile user={user} progress={progress} setView={setCurrentView} onLogout={handleLogout} />;
       case AppView.EDIT_PROFILE: return user ? <EditProfile user={user} onUpdate={handleUpdateUser} onCancel={() => setCurrentView(AppView.PROFILE)} /> : <Auth onLogin={handleLogin} />;

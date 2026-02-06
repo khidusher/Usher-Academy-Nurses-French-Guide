@@ -1,10 +1,7 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { VOCABULARY_DATA } from '../constants.tsx';
 import { AppView } from '../types.ts';
-import { getSpeech } from '../services/gemini.ts';
-import { audioCache } from '../services/audioCache.ts';
-import { decode, decodeAudioData } from '../services/audioUtils.ts';
 
 interface VocabularyProps {
   addXP: (amount: number) => void;
@@ -17,159 +14,11 @@ interface QuizQuestion {
   options: string[];
 }
 
-type DownloadStatus = 'idle' | 'loading' | 'error' | 'success';
-
 const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const [isLoadingAudio, setIsLoadingAudio] = useState(false);
-  const [isDownloadingAll, setIsDownloadingAll] = useState(false);
-  const [downloadProgress, setDownloadProgress] = useState({ current: 0, total: 0 });
-  const [cachedItems, setCachedItems] = useState<Set<string>>(new Set());
-  const [individualStatus, setIndividualStatus] = useState<Record<string, DownloadStatus>>({});
   
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const currentSourceRef = useRef<AudioBufferSourceNode | null>(null);
-  const mountedRef = useRef(true);
-
-  // Initialize cache state
-  useEffect(() => {
-    mountedRef.current = true;
-    const checkCache = async () => {
-      const cachedSet = new Set<string>();
-      for (const item of VOCABULARY_DATA) {
-        if (await audioCache.has(item.french)) {
-          cachedSet.add(item.french);
-        }
-      }
-      if (mountedRef.current) setCachedItems(cachedSet);
-    };
-    checkCache();
-    return () => { mountedRef.current = false; };
-  }, []);
-
-  const stopCurrentAudio = () => {
-    if (currentSourceRef.current) {
-      try { currentSourceRef.current.stop(); } catch (e) {}
-      currentSourceRef.current = null;
-    }
-    setIsSpeaking(false);
-  };
-
-  const playAudio = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (isSpeaking) {
-      stopCurrentAudio();
-      return;
-    }
-    if (isLoadingAudio) return;
-
-    const frenchText = VOCABULARY_DATA[currentIndex].french;
-    
-    if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
-      audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-    }
-    const audioCtx = audioCtxRef.current;
-    
-    setIsLoadingAudio(true);
-    try {
-      let base64Audio = await audioCache.get(frenchText);
-      if (!base64Audio) {
-        if (!navigator.onLine) throw new Error("Offline");
-        base64Audio = await getSpeech(frenchText);
-        if (base64Audio) {
-          await audioCache.set(frenchText, base64Audio);
-          setCachedItems(prev => new Set(prev).add(frenchText));
-          setIndividualStatus(prev => ({ ...prev, [frenchText]: 'success' }));
-        }
-      }
-
-      if (!base64Audio) throw new Error("No audio data");
-
-      const bytes = decode(base64Audio);
-      const audioBuffer = await decodeAudioData(bytes, audioCtx, 24000, 1);
-      
-      if (audioCtx.state === 'suspended') await audioCtx.resume();
-
-      const source = audioCtx.createBufferSource();
-      source.buffer = audioBuffer;
-      source.connect(audioCtx.destination);
-      source.onended = () => {
-        if (mountedRef.current) setIsSpeaking(false);
-      };
-
-      currentSourceRef.current = source;
-      setIsLoadingAudio(false);
-      setIsSpeaking(true);
-      source.start(0);
-    } catch (error) {
-      console.error("Audio error:", error);
-      setIsLoadingAudio(false);
-      setIsSpeaking(false);
-      setIndividualStatus(prev => ({ ...prev, [frenchText]: 'error' }));
-    }
-  };
-
-  const downloadItem = async (e: React.MouseEvent, frenchText: string) => {
-    e.stopPropagation();
-    if (cachedItems.has(frenchText) || individualStatus[frenchText] === 'loading') return;
-
-    setIndividualStatus(prev => ({ ...prev, [frenchText]: 'loading' }));
-    try {
-      const base64 = await getSpeech(frenchText);
-      if (base64) {
-        await audioCache.set(frenchText, base64);
-        setCachedItems(prev => new Set(prev).add(frenchText));
-        setIndividualStatus(prev => ({ ...prev, [frenchText]: 'success' }));
-      } else {
-        throw new Error("Failed to fetch audio");
-      }
-    } catch (err) {
-      console.error(`Download failed for ${frenchText}`, err);
-      setIndividualStatus(prev => ({ ...prev, [frenchText]: 'error' }));
-    }
-  };
-
-  const downloadAllAudio = async () => {
-    if (!navigator.onLine) {
-      alert("Please connect to the internet to download the audio pack.");
-      return;
-    }
-    const uncached = VOCABULARY_DATA.filter(item => !cachedItems.has(item.french));
-    if (uncached.length === 0) {
-      alert("All audio is already saved offline!");
-      return;
-    }
-
-    setIsDownloadingAll(true);
-    setDownloadProgress({ current: 0, total: uncached.length });
-    
-    let processedCount = 0;
-    for (const item of uncached) {
-      if (!mountedRef.current) break;
-      try {
-        setIndividualStatus(prev => ({ ...prev, [item.french]: 'loading' }));
-        const base64 = await getSpeech(item.french);
-        if (base64) {
-          await audioCache.set(item.french, base64);
-          setCachedItems(prev => new Set(prev).add(item.french));
-          setIndividualStatus(prev => ({ ...prev, [item.french]: 'success' }));
-        } else {
-          throw new Error("Empty response");
-        }
-      } catch (err) {
-        console.error(`Failed to download ${item.french}`, err);
-        setIndividualStatus(prev => ({ ...prev, [item.french]: 'error' }));
-      }
-      processedCount++;
-      setDownloadProgress(prev => ({ ...prev, current: processedCount }));
-    }
-    setIsDownloadingAll(false);
-  };
-
   const handleNext = () => {
-    stopCurrentAudio();
     setIsFlipped(false);
     if (currentIndex < VOCABULARY_DATA.length - 1) {
       setCurrentIndex(prev => prev + 1);
@@ -183,7 +32,7 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
   const [currentQuizIndex, setCurrentQuizIndex] = useState(0);
   const [quizScore, setQuizScore] = useState(0);
   const [quizFinished, setQuizFinished] = useState(false);
-  const [selectedOption, setSelectedOption] = useState<string | null>(null);
+  const [selectedOption, setSelectedOption] = useState<number | null>(null);
 
   const generateQuiz = () => {
     const shuffled = [...VOCABULARY_DATA].sort(() => 0.5 - Math.random());
@@ -199,13 +48,19 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
     });
     setQuizQuestions(newQuestions);
     setIsQuizMode(true);
+    setCurrentQuizIndex(0);
+    setQuizScore(0);
+    setQuizFinished(false);
   };
 
-  const handleQuizAnswer = (option: string) => {
-    if (selectedOption) return;
-    setSelectedOption(option);
-    const isCorrect = option === quizQuestions[currentQuizIndex].correctEnglish;
-    if (isCorrect) setQuizScore(prev => prev + 1);
+  const handleQuizAnswer = (idx: number) => {
+    if (selectedOption !== null) return;
+    setSelectedOption(idx);
+    const isCorrect = quizQuestions[currentQuizIndex].options[idx] === quizQuestions[currentQuizIndex].correctEnglish;
+    if (isCorrect) {
+      setQuizScore(prev => prev + 1);
+      addXP(10);
+    }
     setTimeout(() => {
       setSelectedOption(null);
       if (currentQuizIndex < quizQuestions.length - 1) {
@@ -217,8 +72,6 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
   };
 
   const currentCard = VOCABULARY_DATA[currentIndex];
-  const allDownloaded = cachedItems.size === VOCABULARY_DATA.length;
-  const status = cachedItems.has(currentCard.french) ? 'success' : (individualStatus[currentCard.french] || 'idle');
 
   return (
     <div className="flex flex-col h-full bg-slate-50">
@@ -232,44 +85,6 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
         <div className="w-10"></div>
       </header>
 
-      {/* Download Status Header */}
-      {!isQuizMode && (
-        <div className="bg-white border-b border-slate-200 p-4 space-y-3 shrink-0">
-          <div className="flex justify-between items-center">
-            <div className="flex flex-col">
-              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">Offline Audio Pack</h3>
-              <p className="text-xs font-bold text-slate-700">{cachedItems.size} of {VOCABULARY_DATA.length} items saved</p>
-            </div>
-            <button 
-              onClick={downloadAllAudio} 
-              disabled={isDownloadingAll || allDownloaded}
-              className={`text-[10px] font-bold px-4 py-2 rounded-xl border transition-all duration-300 flex items-center gap-2 ${
-                allDownloaded 
-                ? 'bg-emerald-500 text-white border-emerald-500 shadow-sm shadow-emerald-100 ring-2 ring-emerald-100 ring-offset-1' 
-                : isDownloadingAll
-                  ? 'bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed'
-                  : 'bg-emerald-50 text-emerald-600 border-emerald-100 hover:bg-emerald-100 active:scale-95'
-              }`}
-            >
-              {allDownloaded ? (
-                <><span className="text-sm">✓</span> Pack Saved</>
-              ) : isDownloadingAll ? (
-                <><span className="animate-spin text-xs">⏳</span> {Math.round((downloadProgress.current / downloadProgress.total) * 100)}%</>
-              ) : (
-                <><span className="text-sm">📥</span> Download All</>
-              )}
-            </button>
-          </div>
-          
-          <div className={`w-full bg-slate-100 h-1.5 rounded-full overflow-hidden transition-opacity duration-500 ${isDownloadingAll ? 'opacity-100' : 'opacity-0'}`}>
-            <div 
-              className="bg-emerald-500 h-full transition-all duration-500 ease-out" 
-              style={{ width: `${isDownloadingAll ? (downloadProgress.current / downloadProgress.total) * 100 : 0}%` }} 
-            />
-          </div>
-        </div>
-      )}
-
       <div className="flex-1 overflow-y-auto p-4 flex flex-col items-center">
         {isQuizMode ? (
           quizFinished ? (
@@ -280,7 +95,7 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
               <h2 className="text-2xl font-black text-slate-800 mb-2">
                 {((quizScore / quizQuestions.length) * 100) >= 75 ? 'Lesson Passed!' : 'Needs Review'}
               </h2>
-              <p className="text-slate-500 mb-6 font-medium">Score: <span className="font-bold text-slate-800">{(quizScore / quizQuestions.length) * 100}%</span></p>
+              <p className="text-slate-500 mb-6 font-medium">Score: <span className="font-bold text-slate-800">{quizScore} / {quizQuestions.length}</span></p>
               <button onClick={() => setView(AppView.DASHBOARD)} className="w-full max-w-xs bg-emerald-500 text-white py-4 rounded-2xl font-black shadow-lg shadow-emerald-200 active:scale-95 transition-all">Finish Lesson</button>
             </div>
           ) : (
@@ -297,15 +112,15 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
               <div className="grid grid-cols-1 gap-3 w-full">
                 {quizQuestions[currentQuizIndex].options.map((option, idx) => {
                   const isCorrect = option === quizQuestions[currentQuizIndex].correctEnglish;
-                  const isSelected = option === selectedOption;
+                  const isSelected = idx === selectedOption;
                   let btnClass = "bg-white border-slate-200 text-slate-700 active:scale-[0.98]";
-                  if (selectedOption) {
+                  if (selectedOption !== null) {
                     if (isCorrect) btnClass = "bg-emerald-500 border-emerald-500 text-white shadow-emerald-100";
                     else if (isSelected) btnClass = "bg-red-500 border-red-500 text-white shadow-red-100";
                     else btnClass = "opacity-40 grayscale";
                   }
                   return (
-                    <button key={idx} disabled={!!selectedOption} onClick={() => handleQuizAnswer(option)} className={`w-full p-4 rounded-2xl border-2 font-bold text-sm transition-all flex items-center gap-4 ${btnClass}`}>
+                    <button key={idx} disabled={selectedOption !== null} onClick={() => handleQuizAnswer(idx)} className={`w-full p-4 rounded-2xl border-2 font-bold text-sm transition-all flex items-center gap-4 ${btnClass}`}>
                       <span className="w-7 h-7 rounded-full border border-current flex items-center justify-center text-[10px]">{String.fromCharCode(65 + idx)}</span>
                       {option}
                     </button>
@@ -325,53 +140,12 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
               <div className={`relative w-full h-full transition-all duration-500 [transform-style:preserve-3d] ${isFlipped ? '[transform:rotateY(180deg)]' : ''}`}>
                 {/* Front Card */}
                 <div className="absolute inset-0 bg-white border-2 border-slate-100 rounded-[3rem] shadow-xl shadow-slate-200/50 flex flex-col items-center justify-center p-8 [backface-visibility:hidden]">
-                  <div className="absolute top-8 left-0 right-0 px-8 flex items-center justify-between">
+                  <div className="absolute top-8 left-0 right-0 px-8 flex items-center justify-center">
                     <span className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">{currentCard.category}</span>
-                    
-                    <div className="flex items-center gap-2">
-                      {status === 'success' ? (
-                        <span className="text-emerald-500 text-[10px] font-bold bg-emerald-50 px-2 py-1 rounded-full border border-emerald-100 animate-in fade-in duration-300 flex items-center gap-1">
-                          <span>✓</span> Saved
-                        </span>
-                      ) : status === 'error' ? (
-                        <button 
-                          onClick={(e) => downloadItem(e, currentCard.french)}
-                          className="text-red-500 text-[10px] font-bold bg-red-50 px-2 py-1 rounded-full border border-red-100 animate-in shake duration-300 flex items-center gap-1 hover:bg-red-100"
-                        >
-                          <span>⚠️</span> Failed. Retry?
-                        </button>
-                      ) : status === 'loading' ? (
-                        <span className="text-slate-400 text-[10px] font-bold bg-slate-50 px-2 py-1 rounded-full border border-slate-100 flex items-center gap-1">
-                          <span className="animate-spin">⏳</span> Saving...
-                        </span>
-                      ) : (
-                        <button 
-                          onClick={(e) => downloadItem(e, currentCard.french)}
-                          className="text-emerald-600 text-[10px] font-bold bg-emerald-50 px-2 py-1 rounded-full border border-emerald-100 hover:bg-emerald-100 flex items-center gap-1"
-                        >
-                          <span>📥</span> Save Offline
-                        </button>
-                      )}
-                    </div>
                   </div>
                   
                   <div className="flex flex-col items-center gap-6">
                     <h3 className="text-4xl font-black text-slate-800 text-center leading-tight">{currentCard.french}</h3>
-                    <button 
-                      onClick={playAudio} 
-                      className={`w-20 h-20 rounded-full flex items-center justify-center transition-all shadow-lg active:scale-90 ${
-                        isSpeaking 
-                        ? 'bg-emerald-100 text-emerald-600 ring-4 ring-emerald-50' 
-                        : isLoadingAudio 
-                          ? 'bg-slate-50 text-slate-400 cursor-wait' 
-                          : 'bg-emerald-500 text-white hover:bg-emerald-600'
-                      }`}
-                    >
-                      <span className={`text-3xl ${isSpeaking ? 'animate-pulse' : ''}`}>
-                        {isLoadingAudio ? '⏳' : isSpeaking ? '🔊' : '▶️'}
-                      </span>
-                    </button>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Hear Pronunciation</p>
                   </div>
                 </div>
 
