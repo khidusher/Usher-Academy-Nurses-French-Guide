@@ -4,6 +4,7 @@ import { VOCABULARY_DATA } from '../constants';
 import { AppView } from '../types';
 import { getSpeech } from '../services/gemini';
 import { audioCache } from '../services/audioCache';
+import { decode, decodeAudioData } from '../services/audioUtils';
 
 interface VocabularyProps {
   addXP: (amount: number) => void;
@@ -14,37 +15,6 @@ interface QuizQuestion {
   french: string;
   correctEnglish: string;
   options: string[];
-}
-
-// Utility to decode base64 to Uint8Array
-function decode(base64: string) {
-  const binaryString = atob(base64);
-  const len = binaryString.length;
-  const bytes = new Uint8Array(len);
-  for (let i = 0; i < len; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-  return bytes;
-}
-
-// Utility to decode raw PCM to AudioBuffer
-async function decodeAudioData(
-  data: Uint8Array,
-  ctx: AudioContext,
-  sampleRate: number,
-  numChannels: number,
-): Promise<AudioBuffer> {
-  const dataInt16 = new Int16Array(data.buffer);
-  const frameCount = dataInt16.length / numChannels;
-  const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
-
-  for (let channel = 0; channel < numChannels; channel++) {
-    const channelData = buffer.getChannelData(channel);
-    for (let i = 0; i < frameCount; i++) {
-      channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
-    }
-  }
-  return buffer;
 }
 
 const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
@@ -82,7 +52,6 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
   }, []);
 
   const generateQuiz = () => {
-    // Select 4 random words from the session data for testing
     const shuffled = [...VOCABULARY_DATA].sort(() => 0.5 - Math.random());
     const selected = shuffled.slice(0, 4);
     
@@ -175,12 +144,16 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
         const source = audioCtx.createBufferSource();
         source.buffer = audioBuffer;
         source.connect(audioCtx.destination);
-        source.onended = () => setIsSpeaking(false);
+        source.onended = () => {
+          setIsSpeaking(false);
+          audioCtx.close();
+        };
         source.start();
       } else {
         setIsSpeaking(false);
       }
     } catch (error) {
+      console.error("Audio Playback Error:", error);
       setIsSpeaking(false);
     }
   };
@@ -212,7 +185,6 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
 
   return (
     <div className="flex flex-col h-full bg-slate-50">
-      {/* Internal Header */}
       <header className="bg-emerald-600 text-white px-4 py-3 flex items-center justify-between shadow-md shrink-0">
         <button onClick={() => setView(AppView.DASHBOARD)} className="p-2 hover:bg-emerald-700 rounded-full transition-colors">
           <span className="text-xl">←</span>
@@ -220,7 +192,7 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
         <h2 className="text-sm font-bold uppercase tracking-wider">
           {isQuizMode ? 'Final Assessment' : 'Study Session'}
         </h2>
-        <div className="w-10"></div> {/* Spacer */}
+        <div className="w-10"></div>
       </header>
 
       <div className="flex-1 overflow-y-auto p-4 flex flex-col items-center">
