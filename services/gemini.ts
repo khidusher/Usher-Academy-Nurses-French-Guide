@@ -14,11 +14,6 @@ export const getGeminiResponse = async (prompt: string, systemInstruction: strin
   return response.text;
 };
 
-/**
- * Curated Ghanaian Nursing Curriculum Scenarios.
- * These are "in-built" to the prompt to ensure high quality while 
- * Gemini handles the generation of unique distractors and clinical explanations.
- */
 const GHANAIAN_CLINICAL_SCENARIOS = [
   "Maternal health triage in a rural clinic in the Volta Region.",
   "Malaria rapid diagnostic testing (RDT) procedures and patient counseling in Twi/French.",
@@ -30,23 +25,22 @@ const GHANAIAN_CLINICAL_SCENARIOS = [
   "Infection prevention and control (IPC) protocols during an infectious disease outbreak.",
 ];
 
-export const generateExamQuestions = async (topic: string) => {
+export const generateExamQuestions = async (lessonTopic: string) => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  
-  // We select a random scenario from our "in-built" list to ground the generation
   const randomScenario = GHANAIAN_CLINICAL_SCENARIOS[Math.floor(Math.random() * GHANAIAN_CLINICAL_SCENARIOS.length)];
 
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
-    contents: `Generate 5 professional MCQs for the Ghana Nursing Board Exam Prep.
-    Primary Topic: ${topic}
+    contents: `Generate EXACTLY 10 professional clinical MCQs for the Ghana Nursing Board Exam Prep.
+    Lesson Topic: ${lessonTopic}
     Clinical Scenario Base: ${randomScenario}
     
     Requirements:
-    1. Language: Questions in French, but options can be English/French hybrid (realistic for Ghana exams).
-    2. Difficulty: Level 3 Clinical Competency.
-    3. Authenticity: Use Ghanaian medical context (MOH protocols, local terminology).
-    4. Explanations: Must provide a 'Clinical Pearl' for the correct answer.`,
+    1. EXACTLY 10 questions.
+    2. Language: Questions in professional French. Options in French (with English translations in brackets where necessary).
+    3. Clinical Context: Scenarios MUST reflect Ghanaian nursing standards (MOH/NMC guidelines).
+    4. Structure: Each question must have 4 options (A, B, C, D) and ONE correct answer.
+    5. Explanations: Provide a 'Clinical Pearl' explanation (max 150 chars).`,
     config: {
       responseMimeType: "application/json",
       responseSchema: {
@@ -65,5 +59,8 @@ export const generateExamQuestions = async (topic: string) => {
       }
     }
   });
-  return JSON.parse(response.text);
+  
+  const parsed = JSON.parse(response.text);
+  // Safety check to ensure exactly 10 or at least high volume
+  return Array.isArray(parsed) ? parsed.slice(0, 10) : [];
 };

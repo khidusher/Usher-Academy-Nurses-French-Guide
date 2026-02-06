@@ -31,7 +31,8 @@ const App: React.FC = () => {
     streak: 3,
     completedLessons: [],
     badges: [],
-    isSupporter: false
+    isSupporter: false,
+    examRecords: []
   });
 
   // Load user-specific progress when user changes
@@ -48,7 +49,8 @@ const App: React.FC = () => {
             streak: 1,
             completedLessons: [],
             badges: [],
-            isSupporter: false
+            isSupporter: false,
+            examRecords: []
           });
         }
       } catch (e) {
@@ -122,7 +124,6 @@ const App: React.FC = () => {
     }
   };
 
-  // Chrome (Header/Nav) is shown for all authenticated views except Edit Profile
   const showChrome = user && currentView !== AppView.AUTH && currentView !== AppView.EDIT_PROFILE;
 
   return (

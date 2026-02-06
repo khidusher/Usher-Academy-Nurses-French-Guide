@@ -1,5 +1,4 @@
 
-// Fixed: Removed duplicate 'export' keyword on the following line
 export enum AppView {
   AUTH = 'AUTH',
   DASHBOARD = 'DASHBOARD',
@@ -16,8 +15,16 @@ export enum AppView {
 export interface User {
   id: string;
   name: string;
-  identifier: string; // Can be email or phone number
+  identifier: string;
   college?: string;
+}
+
+export interface ExamRecord {
+  lessonId: string;
+  score: number;
+  total: number;
+  date: string;
+  timeSpent?: number;
 }
 
 export interface UserProgress {
@@ -29,6 +36,7 @@ export interface UserProgress {
   isSupporter: boolean;
   supportReference?: string;
   lastLessonId?: string;
+  examRecords: ExamRecord[];
 }
 
 export interface Flashcard {
