@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
-import { VOCABULARY_DATA } from '../constants';
-import { AppView } from '../types';
-import { getSpeech } from '../services/gemini';
-import { audioCache } from '../services/audioCache';
-import { decode, decodeAudioData } from '../services/audioUtils';
+import { VOCABULARY_DATA } from '../constants.tsx';
+import { AppView } from '../types.ts';
+import { getSpeech } from '../services/gemini.ts';
+import { audioCache } from '../services/audioCache.ts';
+import { decode, decodeAudioData } from '../services/audioUtils.ts';
 
 interface VocabularyProps {
   addXP: (amount: number) => void;
@@ -22,9 +22,10 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
   const [isFlipped, setIsFlipped] = useState(false);
   const [sessionXP, setSessionXP] = useState(0);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false);
-  const [downloadingStatus, setDownloadingStatus] = useState<string>("");
+  const [isDownloadingAll, setIsDownloadingAll] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState({ current: 0, total: 0 });
   const [cachedItems, setCachedItems] = useState<Set<string>>(new Set());
+  const [individualDownloading, setIndividualDownloading] = useState<Set<string>>(new Set());
 
   // Quiz State
   const [isQuizMode, setIsQuizMode] = useState(false);
@@ -118,20 +119,55 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
     setView(AppView.DASHBOARD);
   };
 
+  const downloadSpecificAudio = async (text: string) => {
+    if (cachedItems.has(text) || individualDownloading.has(text)) return;
+    if (!navigator.onLine) {
+      alert("Please connect to the internet to download audio.");
+      return;
+    }
+
+    setIndividualDownloading(prev => new Set(prev).add(text));
+    try {
+      const base64 = await getSpeech(text);
+      if (base64) {
+        await audioCache.set(text, base64);
+        setCachedItems(prev => new Set(prev).add(text));
+      }
+    } catch (err) {
+      console.error("Failed to download specific audio:", err);
+    } finally {
+      setIndividualDownloading(prev => {
+        const next = new Set(prev);
+        next.delete(text);
+        return next;
+      });
+    }
+  };
+
   const playAudio = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (isSpeaking) return;
     
+    const card = VOCABULARY_DATA[currentIndex];
+    const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+    
     setIsSpeaking(true);
     try {
-      const card = VOCABULARY_DATA[currentIndex];
       let base64Audio = await audioCache.get(card.french);
+      
       if (!base64Audio) {
         if (!navigator.onLine) {
-          setIsSpeaking(false);
-          return;
+          throw new Error("Offline and no cached audio.");
         }
+        // If not cached, we download it now (this also caches it)
+        setIndividualDownloading(prev => new Set(prev).add(card.french));
         base64Audio = await getSpeech(card.french);
+        setIndividualDownloading(prev => {
+          const next = new Set(prev);
+          next.delete(card.french);
+          return next;
+        });
+
         if (base64Audio) {
           await audioCache.set(card.french, base64Audio);
           setCachedItems(prev => new Set(prev).add(card.french));
@@ -139,7 +175,10 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
       }
       
       if (base64Audio) {
-        const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+        if (audioCtx.state === 'suspended') {
+          await audioCtx.resume();
+        }
+
         const audioBuffer = await decodeAudioData(decode(base64Audio), audioCtx, 24000, 1);
         const source = audioCtx.createBufferSource();
         source.buffer = audioBuffer;
@@ -148,40 +187,55 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
           setIsSpeaking(false);
           audioCtx.close();
         };
-        source.start();
+        source.start(0);
       } else {
-        setIsSpeaking(false);
+        throw new Error("No audio data received.");
       }
     } catch (error) {
       console.error("Audio Playback Error:", error);
       setIsSpeaking(false);
+      audioCtx.close();
     }
   };
 
   const downloadAllAudio = async () => {
     if (!navigator.onLine) {
-      alert("Please connect to the internet.");
+      alert("Please connect to the internet to download the full pack.");
       return;
     }
-    setIsDownloading(true);
-    let count = 0;
-    const total = VOCABULARY_DATA.length;
-    for (const item of VOCABULARY_DATA) {
-      count++;
+
+    const uncached = VOCABULARY_DATA.filter(item => !cachedItems.has(item.french));
+    if (uncached.length === 0) {
+      alert("All audio is already offline!");
+      return;
+    }
+
+    setIsDownloadingAll(true);
+    setDownloadProgress({ current: 0, total: uncached.length });
+
+    let processedCount = 0;
+    for (const item of uncached) {
       if (!(await audioCache.has(item.french))) {
-        setDownloadingStatus(`Fetching "${item.french}"... (${count}/${total})`);
         try {
           const base64 = await getSpeech(item.french);
           if (base64) {
             await audioCache.set(item.french, base64);
             setCachedItems(prev => new Set(prev).add(item.french));
           }
-        } catch (err) {}
+        } catch (err) {
+          console.error(`Error downloading "${item.french}":`, err);
+        }
       }
+      processedCount++;
+      setDownloadProgress(prev => ({ ...prev, current: processedCount }));
     }
-    setIsDownloading(false);
-    setDownloadingStatus("");
+
+    setIsDownloadingAll(false);
   };
+
+  const currentCard = VOCABULARY_DATA[currentIndex];
+  const isCurrentlyIndividualDownloading = individualDownloading.has(currentCard.french);
+  const isCurrentlyCached = cachedItems.has(currentCard.french);
 
   return (
     <div className="flex flex-col h-full bg-slate-50">
@@ -194,6 +248,22 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
         </h2>
         <div className="w-10"></div>
       </header>
+
+      {/* Download All Progress Bar */}
+      {isDownloadingAll && (
+        <div className="bg-emerald-50 px-4 py-2 border-b border-emerald-100 animate-in fade-in duration-300">
+          <div className="flex justify-between items-center mb-1">
+            <span className="text-[10px] font-bold text-emerald-700 uppercase">Downloading Audio Pack...</span>
+            <span className="text-[10px] font-bold text-emerald-700">{Math.round((downloadProgress.current / downloadProgress.total) * 100)}%</span>
+          </div>
+          <div className="w-full bg-emerald-200 h-1.5 rounded-full overflow-hidden">
+            <div 
+              className="bg-emerald-500 h-full transition-all duration-300" 
+              style={{ width: `${(downloadProgress.current / downloadProgress.total) * 100}%` }} 
+            />
+          </div>
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto p-4 flex flex-col items-center">
         {isQuizMode ? (
@@ -279,34 +349,63 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Tap card to see meaning</p>
               </div>
               <div className="flex items-center gap-2">
-                {!isDownloading ? (
-                   <button onClick={downloadAllAudio} className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1.5 rounded-xl border border-emerald-100 hover:bg-emerald-100 transition-colors">
-                     📥 Offline Pack
-                   </button>
-                ) : (
-                  <span className="text-[9px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-lg animate-pulse">{downloadingStatus}</span>
-                )}
+                <button 
+                  onClick={downloadAllAudio} 
+                  disabled={isDownloadingAll || cachedItems.size === VOCABULARY_DATA.length}
+                  className={`text-[10px] font-bold px-2.5 py-1.5 rounded-xl border transition-all flex items-center gap-1.5 ${
+                    cachedItems.size === VOCABULARY_DATA.length 
+                    ? 'bg-emerald-500 text-white border-emerald-500 opacity-50 cursor-not-allowed' 
+                    : 'bg-emerald-50 text-emerald-600 border-emerald-100 hover:bg-emerald-100'
+                  }`}
+                >
+                  {cachedItems.size === VOCABULARY_DATA.length ? '✅ All Offline' : '📥 Download All'}
+                </button>
                 <span className="bg-slate-800 text-white px-3 py-1.5 rounded-xl text-[10px] font-black">{currentIndex + 1} / {VOCABULARY_DATA.length}</span>
               </div>
             </div>
 
             <div className="w-full max-w-sm aspect-[4/5] relative perspective-1000 group cursor-pointer" onClick={() => setIsFlipped(!isFlipped)}>
               <div className={`relative w-full h-full transition-all duration-500 [transform-style:preserve-3d] ${isFlipped ? '[transform:rotateY(180deg)]' : ''}`}>
+                {/* Front of card */}
                 <div className="absolute inset-0 bg-white border-2 border-slate-100 rounded-[3rem] shadow-xl shadow-slate-200/50 flex flex-col items-center justify-center p-8 [backface-visibility:hidden]">
-                  <div className="absolute top-8 flex items-center gap-2">
-                    <span className="text-slate-400 text-[10px] font-bold uppercase tracking-[0.2em]">{VOCABULARY_DATA[currentIndex].category}</span>
-                    {cachedItems.has(VOCABULARY_DATA[currentIndex].french) && <span className="text-[8px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-bold uppercase tracking-widest">Offline</span>}
+                  <div className="absolute top-8 left-0 right-0 px-8 flex items-center justify-between">
+                    <span className="text-slate-400 text-[10px] font-bold uppercase tracking-[0.2em]">{currentCard.category}</span>
+                    
+                    {/* Individual Download Indicator */}
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); downloadSpecificAudio(currentCard.french); }}
+                      disabled={isCurrentlyCached || isCurrentlyIndividualDownloading}
+                      className={`p-2 rounded-full transition-all ${
+                        isCurrentlyCached 
+                        ? 'text-emerald-500 bg-emerald-50' 
+                        : isCurrentlyIndividualDownloading 
+                          ? 'text-emerald-400 animate-spin bg-emerald-50/50' 
+                          : 'text-slate-300 hover:text-emerald-500 hover:bg-emerald-50'
+                      }`}
+                      title={isCurrentlyCached ? "Available offline" : "Download for offline use"}
+                    >
+                      {isCurrentlyCached ? (
+                        <span className="text-xs">✅</span>
+                      ) : isCurrentlyIndividualDownloading ? (
+                        <span className="text-xs">⏳</span>
+                      ) : (
+                        <span className="text-xs">📥</span>
+                      )}
+                    </button>
                   </div>
+                  
                   <div className="flex flex-col items-center gap-8">
-                    <h3 className="text-4xl font-black text-slate-800 text-center leading-tight">{VOCABULARY_DATA[currentIndex].french}</h3>
+                    <h3 className="text-4xl font-black text-slate-800 text-center leading-tight">{currentCard.french}</h3>
                     <button onClick={playAudio} className={`w-16 h-16 rounded-full flex items-center justify-center transition-all shadow-lg ${isSpeaking ? 'bg-emerald-100 text-emerald-600 animate-pulse' : 'bg-emerald-50 text-emerald-500 hover:scale-110 active:scale-90'}`}>
                       <span className="text-3xl">{isSpeaking ? '⏳' : '🔊'}</span>
                     </button>
                   </div>
                 </div>
+
+                {/* Back of card */}
                 <div className="absolute inset-0 bg-emerald-600 border-2 border-white/20 rounded-[3rem] shadow-xl flex flex-col items-center justify-center p-8 [backface-visibility:hidden] [transform:rotateY(180deg)]">
                   <span className="text-emerald-100/50 text-[10px] font-bold uppercase tracking-[0.2em] mb-8">English Meaning</span>
-                  <h3 className="text-4xl font-black text-white text-center leading-tight">{VOCABULARY_DATA[currentIndex].english}</h3>
+                  <h3 className="text-4xl font-black text-white text-center leading-tight">{currentCard.english}</h3>
                 </div>
               </div>
             </div>

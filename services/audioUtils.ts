@@ -1,9 +1,12 @@
 
 /**
  * Manual Base64 decoding following Gemini API requirements.
+ * Strips whitespace and potential metadata prefixes for resilience.
  */
 export function decode(base64: string): Uint8Array {
-  const binaryString = atob(base64);
+  // Remove any potential whitespace or non-base64 characters added by some environments
+  const cleanBase64 = base64.replace(/[^A-Za-z0-9+/=]/g, "");
+  const binaryString = atob(cleanBase64);
   const len = binaryString.length;
   const bytes = new Uint8Array(len);
   for (let i = 0; i < len; i++) {
