@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { generateExamQuestions } from '../services/examService';
 import { ExamQuestion, AppView, ExamRecord } from '../types';
@@ -130,7 +131,7 @@ const ExamPractice: React.FC<ExamPracticeProps> = ({ addXP, setView, saveExamRes
 
         {/* Week Selector Tabs */}
         <div className="bg-white border-b border-slate-100 px-4 sticky top-0 z-30">
-          <div className="flex gap-2 overflow-x-auto py-4 scrollbar-hide no-scrollbar">
+          <div className="flex gap-2 overflow-x-auto py-4 no-scrollbar">
             {EXAMS_SCHEMA.weeks.map((week) => (
               <button
                 key={week.week}
@@ -155,9 +156,9 @@ const ExamPractice: React.FC<ExamPracticeProps> = ({ addXP, setView, saveExamRes
             </div>
             <button 
               onClick={() => setIsTimed(!isTimed)}
-              className={`w-16 h-9 rounded-full relative transition-all duration-300 ${isTimed ? 'bg-emerald-500' : 'bg-slate-700'}`}
+              className={`w-14 h-8 rounded-full relative transition-all duration-300 ${isTimed ? 'bg-emerald-500' : 'bg-slate-700'}`}
             >
-              <div className={`absolute top-1.5 w-6 h-6 bg-white rounded-full transition-all shadow-md ${isTimed ? 'left-8.5' : 'left-1.5'}`} />
+              <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all shadow-md ${isTimed ? 'left-[calc(100%-1.75rem)]' : 'left-1'}`} />
             </button>
           </div>
 
@@ -232,10 +233,10 @@ const ExamPractice: React.FC<ExamPracticeProps> = ({ addXP, setView, saveExamRes
     const progressPerc = ((currentIndex + 1) / questions.length) * 100;
 
     return (
-      <div className="flex flex-col h-full bg-slate-50 overflow-hidden">
-        <header className="bg-white border-b border-slate-100 px-6 py-5 flex justify-between items-center shadow-md shrink-0 relative z-10">
+      <div className="flex flex-col h-full bg-slate-50 relative overflow-hidden">
+        <header className="bg-white border-b border-slate-100 px-6 py-5 flex justify-between items-center shadow-md shrink-0 relative z-50">
           <div className="flex items-center gap-4">
-            <button onClick={() => setActiveStep('SELECT')} className="text-slate-300 hover:text-slate-600 transition-colors">✕</button>
+            <button onClick={() => setActiveStep('SELECT')} className="text-slate-300 hover:text-slate-600 transition-colors p-1">✕</button>
             <div className="bg-slate-900 text-white px-4 py-1.5 rounded-2xl">
               <span className="text-[10px] font-black tracking-widest uppercase">Question {currentIndex + 1} / {questions.length}</span>
             </div>
@@ -247,11 +248,11 @@ const ExamPractice: React.FC<ExamPracticeProps> = ({ addXP, setView, saveExamRes
           )}
         </header>
 
-        <div className="w-full h-1.5 bg-slate-100 overflow-hidden">
+        <div className="w-full h-1.5 bg-slate-100 overflow-hidden shrink-0 z-50">
           <div className="bg-emerald-500 h-full transition-all duration-500" style={{ width: `${progressPerc}%` }} />
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-8 pb-32">
+        <div className="flex-1 overflow-y-auto p-6 space-y-8 scroll-smooth" style={{ paddingBottom: '160px' }}>
           <div className="bg-white p-10 rounded-[3rem] shadow-xl shadow-slate-200/50 border border-slate-100 text-center">
             <h3 className="text-xl font-bold text-slate-800 leading-relaxed">{q.question}</h3>
           </div>
@@ -301,25 +302,27 @@ const ExamPractice: React.FC<ExamPracticeProps> = ({ addXP, setView, saveExamRes
           )}
         </div>
 
-        <footer className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-lg bg-white/95 backdrop-blur-md p-6 flex justify-between border-t border-slate-100 z-[1100] pb-10">
-           {!isConfirmed ? (
-             <button 
-                onClick={handleConfirm}
-                disabled={userChoice === null}
-                className={`w-full py-5 rounded-[2rem] font-black text-xs uppercase tracking-widest shadow-xl transition-all ${
-                  userChoice === null ? 'bg-slate-100 text-slate-300 cursor-not-allowed' : 'bg-emerald-600 text-white active:scale-95'
-                }`}
-             >
-                Confirm Analysis 💉
-             </button>
-           ) : (
-             <button 
-                onClick={handleNext}
-                className="w-full py-5 bg-slate-900 text-white rounded-[2rem] font-black text-xs uppercase tracking-widest shadow-xl active:scale-95 animate-in zoom-in duration-200"
-             >
-                {currentIndex === questions.length - 1 ? 'Finish Exam 🏁' : 'Submit & Next ➡️'}
-             </button>
-           )}
+        <footer className="absolute bottom-0 left-0 w-full bg-white/95 backdrop-blur-md p-6 border-t border-slate-100 z-50 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
+           <div className="max-w-md mx-auto">
+             {!isConfirmed ? (
+               <button 
+                  onClick={handleConfirm}
+                  disabled={userChoice === null}
+                  className={`w-full py-5 rounded-[2rem] font-black text-xs uppercase tracking-widest shadow-xl transition-all ${
+                    userChoice === null ? 'bg-slate-100 text-slate-300 cursor-not-allowed' : 'bg-emerald-600 text-white active:scale-95'
+                  }`}
+               >
+                  Confirm Analysis 💉
+               </button>
+             ) : (
+               <button 
+                  onClick={handleNext}
+                  className="w-full py-5 bg-slate-900 text-white rounded-[2rem] font-black text-xs uppercase tracking-widest shadow-xl active:scale-95 animate-in zoom-in duration-200"
+               >
+                  {currentIndex === questions.length - 1 ? 'Finish Exam 🏁' : 'Submit & Next ➡️'}
+               </button>
+             )}
+           </div>
         </footer>
       </div>
     );
