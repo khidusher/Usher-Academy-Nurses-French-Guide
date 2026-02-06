@@ -37,14 +37,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user, progress, setView, onLogout
             >
               ▶️ Start Lesson
             </button>
-            {!progress.isSupporter && (
-              <button 
-                onClick={() => setView(AppView.SUPPORT)}
-                className="bg-emerald-400/30 text-white px-4 py-2 rounded-2xl font-bold text-xs border border-white/20 hover:bg-emerald-400/50 transition-colors"
-              >
-                Support ❤️
-              </button>
-            )}
+            <button 
+              onClick={() => setView(AppView.ORAL_SIMULATOR)}
+              className="bg-emerald-400/40 text-white px-4 py-3 rounded-2xl font-black text-sm border border-white/20 hover:bg-emerald-400/60 transition-colors flex items-center justify-center gap-2"
+            >
+              🎙️ Practice Oral
+            </button>
           </div>
         </div>
         <div className="absolute top-0 right-0 p-4 opacity-10">

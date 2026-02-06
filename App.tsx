@@ -11,11 +11,17 @@ import Support from './views/Support';
 import Auth from './views/Auth';
 import EditProfile from './views/EditProfile';
 import Profile from './views/Profile';
+import OralSimulator from './views/OralSimulator';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(() => {
-    const savedSession = localStorage.getItem('nursing_french_session');
-    return savedSession ? JSON.parse(savedSession) : null;
+    try {
+      const savedSession = localStorage.getItem('nursing_french_session');
+      return savedSession ? JSON.parse(savedSession) : null;
+    } catch (e) {
+      console.error("Failed to parse session", e);
+      return null;
+    }
   });
 
   const [currentView, setCurrentView] = useState<AppView>(user ? AppView.DASHBOARD : AppView.AUTH);
@@ -31,21 +37,24 @@ const App: React.FC = () => {
   // Load user-specific progress when user changes
   useEffect(() => {
     if (user) {
-      const savedProgress = localStorage.getItem(`progress_${user.id}`);
-      if (savedProgress) {
-        setProgress(JSON.parse(savedProgress));
-      } else {
-        // Initial state for new user
-        setProgress({
-          xp: 0,
-          level: 1,
-          streak: 1,
-          completedLessons: [],
-          badges: [],
-          isSupporter: false
-        });
+      try {
+        const savedProgress = localStorage.getItem(`progress_${user.id}`);
+        if (savedProgress) {
+          setProgress(JSON.parse(savedProgress));
+        } else {
+          setProgress({
+            xp: 0,
+            level: 1,
+            streak: 1,
+            completedLessons: [],
+            badges: [],
+            isSupporter: false
+          });
+        }
+      } catch (e) {
+        console.error("Failed to load progress", e);
       }
-      // Only force dashboard if we are coming from AUTH
+      
       if (currentView === AppView.AUTH) {
         setCurrentView(AppView.DASHBOARD);
       }
@@ -57,7 +66,11 @@ const App: React.FC = () => {
   // Save progress whenever it changes
   useEffect(() => {
     if (user) {
-      localStorage.setItem(`progress_${user.id}`, JSON.stringify(progress));
+      try {
+        localStorage.setItem(`progress_${user.id}`, JSON.stringify(progress));
+      } catch (e) {
+        console.error("Failed to save progress", e);
+      }
     }
   }, [progress, user]);
 
@@ -92,6 +105,8 @@ const App: React.FC = () => {
   };
 
   const renderView = () => {
+    if (!user && currentView !== AppView.AUTH) return <Auth onLogin={handleLogin} />;
+    
     switch (currentView) {
       case AppView.AUTH: return <Auth onLogin={handleLogin} />;
       case AppView.DASHBOARD: return <Dashboard user={user} progress={progress} setView={setCurrentView} onLogout={handleLogout} />;
@@ -101,12 +116,13 @@ const App: React.FC = () => {
       case AppView.LEADERBOARD: return <Leaderboard />;
       case AppView.SUPPORT: return <Support progress={progress} onSupport={markAsSupporter} />;
       case AppView.PROFILE: return <Profile user={user} progress={progress} setView={setCurrentView} onLogout={handleLogout} />;
-      case AppView.EDIT_PROFILE: return user ? <EditProfile user={user} onUpdate={handleUpdateUser} onCancel={() => setCurrentView(AppView.PROFILE)} /> : null;
-      default: return <Auth onLogin={handleLogin} />;
+      case AppView.EDIT_PROFILE: return user ? <EditProfile user={user} onUpdate={handleUpdateUser} onCancel={() => setCurrentView(AppView.PROFILE)} /> : <Auth onLogin={handleLogin} />;
+      case AppView.ORAL_SIMULATOR: return <OralSimulator addXP={addXP} setView={setCurrentView} />;
+      default: return <Dashboard user={user} progress={progress} setView={setCurrentView} onLogout={handleLogout} />;
     }
   };
 
-  const isLearningView = [AppView.VOCABULARY, AppView.GRAMMAR, AppView.EXAM_PRACTICE].includes(currentView);
+  const isLearningView = [AppView.VOCABULARY, AppView.GRAMMAR, AppView.EXAM_PRACTICE, AppView.ORAL_SIMULATOR].includes(currentView);
 
   return (
     <div className="flex flex-col h-screen max-w-lg mx-auto bg-white shadow-xl relative overflow-hidden border-x border-slate-200">

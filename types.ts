@@ -8,7 +8,8 @@ export enum AppView {
   LEADERBOARD = 'LEADERBOARD',
   SUPPORT = 'SUPPORT',
   EDIT_PROFILE = 'EDIT_PROFILE',
-  PROFILE = 'PROFILE'
+  PROFILE = 'PROFILE',
+  ORAL_SIMULATOR = 'ORAL_SIMULATOR'
 }
 
 export interface User {
