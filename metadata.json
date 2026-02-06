@@ -1,5 +1,7 @@
 {
   "name": "Usher Academy Nurses French guide",
   "description": "A gamified French language learning app tailored for Ghanaian nursing students to master medical terminology, clinical communication, and exam preparation.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "microphone"
+  ]
 }

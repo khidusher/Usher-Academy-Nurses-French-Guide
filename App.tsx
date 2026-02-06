@@ -1,17 +1,17 @@
 
 import React, { useState, useEffect } from 'react';
-import { AppView, UserProgress, User } from './types';
-import { NAVIGATION_ITEMS, LEVELS } from './constants';
-import Dashboard from './views/Dashboard';
-import Vocabulary from './views/Vocabulary';
-import Grammar from './views/Grammar';
-import ExamPractice from './views/ExamPractice';
-import Leaderboard from './views/Leaderboard';
-import Support from './views/Support';
-import Auth from './views/Auth';
-import EditProfile from './views/EditProfile';
-import Profile from './views/Profile';
-import OralSimulator from './views/OralSimulator';
+import { AppView, UserProgress, User } from './types.ts';
+import { NAVIGATION_ITEMS, LEVELS } from './constants.tsx';
+import Dashboard from './views/Dashboard.tsx';
+import Vocabulary from './views/Vocabulary.tsx';
+import Grammar from './views/Grammar.tsx';
+import ExamPractice from './views/ExamPractice.tsx';
+import Leaderboard from './views/Leaderboard.tsx';
+import Support from './views/Support.tsx';
+import Auth from './views/Auth.tsx';
+import EditProfile from './views/EditProfile.tsx';
+import Profile from './views/Profile.tsx';
+import OralSimulator from './views/OralSimulator.tsx';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(() => {
