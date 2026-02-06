@@ -31,6 +31,7 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
   // Ref to track the active audio context and source
   const audioCtxRef = useRef<AudioContext | null>(null);
   const currentSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const mountedRef = useRef(true);
 
   // Quiz State
   const [isQuizMode, setIsQuizMode] = useState(false);
@@ -41,6 +42,7 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
 
   useEffect(() => {
+    mountedRef.current = true;
     const checkCache = async () => {
       try {
         const cachedSet = new Set<string>();
@@ -49,7 +51,7 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
             cachedSet.add(item.french);
           }
         }
-        setCachedItems(cachedSet);
+        if (mountedRef.current) setCachedItems(cachedSet);
       } catch (err) {
         console.warn("Cache check failed:", err);
       }
@@ -57,8 +59,9 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
     checkCache();
     
     return () => {
+      mountedRef.current = false;
       stopCurrentAudio();
-      if (audioCtxRef.current) {
+      if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
         audioCtxRef.current.close();
       }
     };
@@ -122,6 +125,7 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
     if (isCorrect) setQuizScore(prev => prev + 1);
 
     setTimeout(() => {
+      if (!mountedRef.current) return;
       setSelectedOption(null);
       if (currentQuizIndex < quizQuestions.length - 1) {
         setCurrentQuizIndex(prev => prev + 1);
@@ -147,7 +151,7 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
   const downloadSpecificAudio = async (text: string) => {
     if (cachedItems.has(text) || individualDownloading.has(text)) return;
     if (!navigator.onLine) {
-      alert("Please connect to the internet to download clinical audio.");
+      alert("Please connect to the internet to save this pronunciation offline.");
       return;
     }
 
@@ -156,16 +160,18 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
       const base64 = await getSpeech(text);
       if (base64) {
         await audioCache.set(text, base64);
-        setCachedItems(prev => new Set(prev).add(text));
+        if (mountedRef.current) setCachedItems(prev => new Set(prev).add(text));
       }
     } catch (err) {
       console.error("Failed to download specific audio:", err);
     } finally {
-      setIndividualDownloading(prev => {
-        const next = new Set(prev);
-        next.delete(text);
-        return next;
-      });
+      if (mountedRef.current) {
+        setIndividualDownloading(prev => {
+          const next = new Set(prev);
+          next.delete(text);
+          return next;
+        });
+      }
     }
   };
 
@@ -177,9 +183,10 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
     }
     if (isLoadingAudio) return;
     
-    const card = VOCABULARY_DATA[currentIndex];
+    const indexAtStart = currentIndex;
+    const frenchText = VOCABULARY_DATA[indexAtStart].french;
     
-    // Ensure we have an active audio context
+    // Lazy init AudioContext on user gesture
     if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
       audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
     }
@@ -191,32 +198,47 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
         await audioCtx.resume();
       }
 
-      let base64Audio = await audioCache.get(card.french);
+      let base64Audio = await audioCache.get(frenchText);
       
       if (!base64Audio) {
         if (!navigator.onLine) {
           throw new Error("Offline and no cached audio.");
         }
-        base64Audio = await getSpeech(card.french);
+        base64Audio = await getSpeech(frenchText);
         if (base64Audio) {
-          await audioCache.set(card.french, base64Audio);
-          setCachedItems(prev => {
-            const next = new Set(prev);
-            next.add(card.french);
-            return next;
-          });
+          await audioCache.set(frenchText, base64Audio);
+          if (mountedRef.current) {
+            setCachedItems(prev => {
+              const next = new Set(prev);
+              next.add(frenchText);
+              return next;
+            });
+          }
         }
       }
       
+      // Safety check: Did the user change the card while we were loading?
+      if (!mountedRef.current || currentIndex !== indexAtStart) {
+        if (mountedRef.current) setIsLoadingAudio(false);
+        return;
+      }
+
       if (base64Audio) {
         const bytes = decode(base64Audio);
         const audioBuffer = await decodeAudioData(bytes, audioCtx, 24000, 1);
+        
+        // Final safety check after decoding
+        if (!mountedRef.current || currentIndex !== indexAtStart) {
+          if (mountedRef.current) setIsLoadingAudio(false);
+          return;
+        }
+
         const source = audioCtx.createBufferSource();
         source.buffer = audioBuffer;
         source.connect(audioCtx.destination);
         
         source.onended = () => {
-          if (currentSourceRef.current === source) {
+          if (mountedRef.current && currentSourceRef.current === source) {
             setIsSpeaking(false);
             currentSourceRef.current = null;
           }
@@ -227,13 +249,14 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
         setIsSpeaking(true);
         source.start(0);
       } else {
-        throw new Error("Audio data generation failed.");
+        throw new Error("Audio generation failed.");
       }
     } catch (error) {
       console.error("Audio Playback Error:", error);
-      setIsLoadingAudio(false);
-      setIsSpeaking(false);
-      // We don't necessarily close the context here unless it's strictly required
+      if (mountedRef.current) {
+        setIsLoadingAudio(false);
+        setIsSpeaking(false);
+      }
     }
   };
 
@@ -251,6 +274,7 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
 
     let processedCount = 0;
     for (const item of uncached) {
+      if (!mountedRef.current) break;
       try {
         const base64 = await getSpeech(item.french);
         if (base64) {
@@ -264,7 +288,7 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
       setDownloadProgress(prev => ({ ...prev, current: processedCount }));
     }
 
-    setIsDownloadingAll(false);
+    if (mountedRef.current) setIsDownloadingAll(false);
   };
 
   const currentCard = VOCABULARY_DATA[currentIndex];
