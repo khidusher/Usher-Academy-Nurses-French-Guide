@@ -122,14 +122,14 @@ const App: React.FC = () => {
     }
   };
 
-  // Persistent header and nav for all views except AUTH and EDIT_PROFILE
+  // Chrome (Header/Nav) is shown for all authenticated views except Edit Profile
   const showChrome = user && currentView !== AppView.AUTH && currentView !== AppView.EDIT_PROFILE;
 
   return (
     <div className="flex flex-col h-screen max-w-lg mx-auto bg-white shadow-xl relative overflow-hidden border-x border-slate-200">
       {showChrome && (
-        <div className="shrink-0 z-50">
-          <header className="bg-emerald-600 text-white p-4 flex justify-between items-center shadow-md">
+        <div className="shrink-0 z-[1001]">
+          <header className="bg-emerald-600 text-white p-4 flex justify-between items-center shadow-lg">
             <div className="overflow-hidden">
               <h1 className="text-sm font-bold tracking-tight flex items-center gap-1 whitespace-nowrap">
                 Usher Academy Nurses French guide {progress.isSupporter && <span title="Supporter" className="text-xs">❤️</span>}
@@ -164,22 +164,25 @@ const App: React.FC = () => {
         </div>
       )}
 
-      <main className={`flex-1 overflow-y-auto bg-white ${showChrome ? 'pb-20' : ''}`}>
+      <main className={`flex-1 overflow-y-auto bg-white relative ${showChrome ? 'pb-24' : ''}`}>
         {renderView()}
       </main>
 
       {showChrome && (
-        <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-lg bg-white border-t border-slate-200 flex justify-around p-1 z-[60] shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+        <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-lg bg-white/95 backdrop-blur-md border-t border-slate-200 flex justify-around p-2 z-[2000] shadow-[0_-8px_40px_rgba(0,0,0,0.08)] pb-safe-area-inset-bottom">
           {NAVIGATION_ITEMS.map((item) => (
             <button
               key={item.view}
               onClick={() => setCurrentView(item.view)}
-              className={`flex-1 flex flex-col items-center py-1.5 px-1 rounded-xl transition-all duration-200 ${
-                currentView === item.view ? 'bg-emerald-50 text-emerald-600 scale-105' : 'text-slate-500 hover:text-emerald-500'
+              className={`flex-1 flex flex-col items-center py-2 px-1 rounded-2xl transition-all duration-300 ${
+                currentView === item.view ? 'bg-emerald-50 text-emerald-600 scale-110 shadow-sm' : 'text-slate-400 hover:text-emerald-500'
               }`}
             >
-              <span className="text-xl mb-0.5">{item.icon}</span>
-              <span className="text-[9px] font-bold uppercase tracking-tight">{item.label}</span>
+              <span className="text-2xl mb-1">{item.icon}</span>
+              <span className="text-[9px] font-black uppercase tracking-widest">{item.label}</span>
+              {currentView === item.view && (
+                <div className="w-1 h-1 bg-emerald-500 rounded-full mt-1" />
+              )}
             </button>
           ))}
         </nav>

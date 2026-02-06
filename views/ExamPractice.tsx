@@ -8,10 +8,10 @@ interface ExamPracticeProps {
   setView: (view: AppView) => void;
 }
 
-// Fixed: Completed component implementation with proper return and default export to fix "Module has no default export" and "Type void is not assignable to ReactNode" errors.
 const ExamPractice: React.FC<ExamPracticeProps> = ({ addXP, setView }) => {
   const [questions, setQuestions] = useState<ExamQuestion[]>([]);
   const [loading, setLoading] = useState(false);
+  const [syncStatus, setSyncStatus] = useState('Initializing Security...');
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
@@ -19,37 +19,53 @@ const ExamPractice: React.FC<ExamPracticeProps> = ({ addXP, setView }) => {
   const [score, setScore] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
 
+  const statusMessages = [
+    'Authenticating Session...',
+    'Syncing with NMC Guidelines...',
+    'Fetching Clinical Cases...',
+    'Assembling Exam Package...',
+    'Securing Environment...',
+  ];
+
   const startNewQuiz = async () => {
     setLoading(true);
     setDownloadProgress(0);
+    setSyncStatus(statusMessages[0]);
     
-    // Simulate downloading progress while Gemini generates content
+    // Smooth progress simulation
+    let msgIdx = 0;
     const interval = setInterval(() => {
       setDownloadProgress(prev => {
-        if (prev >= 95) return prev;
-        return prev + Math.floor(Math.random() * 5) + 1;
+        if (prev >= 98) return prev;
+        const inc = Math.random() * 6;
+        const next = Math.min(98, prev + inc);
+        
+        const nextMsgIdx = Math.min(statusMessages.length - 1, Math.floor((next / 100) * statusMessages.length));
+        if (nextMsgIdx !== msgIdx) {
+          msgIdx = nextMsgIdx;
+          setSyncStatus(statusMessages[msgIdx]);
+        }
+        return next;
       });
     }, 200);
 
     try {
-      const topic = "General Clinical Practice for Ghanaian Nurses";
-      const q = await generateExamQuestions(topic);
-      if (q && Array.isArray(q)) {
-        setQuestions(q);
-      } else {
-        throw new Error("Invalid questions format received");
-      }
+      const q = await generateExamQuestions("Clinical Nursing Excellence");
+      setQuestions(q);
       setDownloadProgress(100);
-      setLoading(false);
-      setCurrentIndex(0);
-      setScore(0);
-      setIsFinished(false);
-      setSelectedOption(null);
-      setShowExplanation(false);
+      setSyncStatus('Sync Successful');
+      setTimeout(() => {
+        setLoading(false);
+        setCurrentIndex(0);
+        setScore(0);
+        setIsFinished(false);
+        setSelectedOption(null);
+        setShowExplanation(false);
+      }, 600);
     } catch (err) {
-      console.error("Exam Generation Error:", err);
+      console.error(err);
+      alert("Encryption Error: Could not sync with exam server.");
       setLoading(false);
-      alert("Failed to generate exam questions. Please try again.");
     } finally {
       clearInterval(interval);
     }
@@ -65,7 +81,7 @@ const ExamPractice: React.FC<ExamPracticeProps> = ({ addXP, setView }) => {
     setShowExplanation(true);
     if (idx === questions[currentIndex].correctIndex) {
       setScore(prev => prev + 1);
-      addXP(20);
+      addXP(30);
     }
   };
 
@@ -81,44 +97,64 @@ const ExamPractice: React.FC<ExamPracticeProps> = ({ addXP, setView }) => {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center h-full p-8 text-center bg-slate-50">
-        <div className="w-20 h-20 bg-emerald-100 rounded-3xl flex items-center justify-center text-3xl mb-6 animate-pulse">
-          📑
+      <div className="flex flex-col items-center justify-center h-full p-8 bg-white">
+        <div className="relative mb-10">
+          <div className="w-24 h-24 bg-emerald-600 rounded-3xl flex items-center justify-center shadow-2xl relative z-10 border-4 border-emerald-50">
+            <span className="text-4xl text-white">🔐</span>
+          </div>
+          <div className="absolute -inset-4 bg-emerald-500/10 rounded-full animate-pulse"></div>
         </div>
-        <h3 className="text-xl font-black text-slate-800 mb-2">Generating Your Exam...</h3>
-        <p className="text-sm text-slate-500 mb-6 leading-relaxed">Our clinical AI is drafting 5 high-yield multiple choice questions for your practice.</p>
-        <div className="w-full max-w-xs bg-slate-200 h-2.5 rounded-full overflow-hidden">
-          <div 
-            className="bg-emerald-500 h-full transition-all duration-300" 
-            style={{ width: `${downloadProgress}%` }}
-          />
+
+        <div className="w-full max-w-xs space-y-6">
+          <div className="text-center">
+            <h3 className="text-xl font-black text-slate-800">Secure Data Sync</h3>
+            <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-[0.2em] mt-1">{syncStatus}</p>
+          </div>
+
+          <div className="space-y-2">
+            <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden border border-slate-50">
+              <div 
+                className="bg-emerald-500 h-full transition-all duration-300 shadow-[0_0_10px_rgba(16,185,129,0.3)]" 
+                style={{ width: `${downloadProgress}%` }}
+              />
+            </div>
+            <div className="flex justify-between text-[8px] font-black text-slate-300 uppercase tracking-widest">
+              <span>NMC Registry V4.1</span>
+              <span>{Math.round(downloadProgress)}%</span>
+            </div>
+          </div>
         </div>
-        <p className="text-[10px] font-black text-slate-400 mt-4 uppercase tracking-widest">{downloadProgress}% Prepared</p>
       </div>
     );
   }
 
   if (isFinished) {
+    const passed = (score / questions.length) >= 0.6;
     return (
-      <div className="flex flex-col items-center justify-center h-full p-8 text-center bg-white animate-in fade-in duration-500">
-        <div className="w-24 h-24 bg-emerald-100 rounded-full flex items-center justify-center text-4xl mb-6 shadow-xl border-4 border-emerald-50">
-          🏆
+      <div className="flex flex-col items-center justify-center min-h-full p-8 bg-slate-50 animate-in zoom-in duration-500">
+        <div className={`w-32 h-32 rounded-[2.5rem] flex items-center justify-center text-5xl mb-8 shadow-2xl border-8 ${
+          passed ? 'bg-emerald-100 border-emerald-50 text-emerald-600' : 'bg-red-100 border-red-50 text-red-600'
+        }`}>
+          {passed ? '🏆' : '📖'}
         </div>
-        <h2 className="text-2xl font-black text-slate-800 mb-2">Assessment Complete!</h2>
-        <p className="text-slate-500 mb-8 font-medium">You achieved a score of <span className="text-emerald-600 font-bold">{score} / {questions.length}</span></p>
         
-        <div className="w-full space-y-3 max-w-xs">
+        <h2 className="text-3xl font-black text-slate-800 mb-2">Simulation Over</h2>
+        <p className="text-slate-500 mb-10 font-medium">
+          Final Score: <span className="font-black text-slate-900">{score} / {questions.length}</span>
+        </p>
+
+        <div className="w-full max-w-xs space-y-3">
           <button 
             onClick={startNewQuiz}
-            className="w-full bg-emerald-600 text-white py-4 rounded-2xl font-black shadow-lg shadow-emerald-200 active:scale-95 transition-all"
+            className="w-full bg-emerald-600 text-white py-5 rounded-3xl font-black shadow-xl shadow-emerald-200 active:scale-95 transition-all"
           >
-            🔄 Take Another Quiz
+            🔄 New Simulation
           </button>
           <button 
             onClick={() => setView(AppView.DASHBOARD)}
-            className="w-full bg-slate-100 text-slate-600 py-4 rounded-2xl font-black active:scale-95 transition-all"
+            className="w-full bg-white text-slate-500 py-4 rounded-3xl font-black border border-slate-200 active:scale-95 transition-all"
           >
-            🏠 Back to Dashboard
+            🏠 Return Home
           </button>
         </div>
       </div>
@@ -127,80 +163,73 @@ const ExamPractice: React.FC<ExamPracticeProps> = ({ addXP, setView }) => {
 
   if (questions.length === 0) return null;
 
-  const currentQuestion = questions[currentIndex];
+  const q = questions[currentIndex];
 
   return (
-    <div className="flex flex-col h-full bg-slate-50 animate-in fade-in duration-300">
-      <header className="bg-white border-b border-slate-100 px-4 py-3 shrink-0 flex justify-between items-center shadow-sm">
-        <button onClick={() => setView(AppView.DASHBOARD)} className="text-slate-400 hover:text-slate-600 p-1">
-          <span className="text-xl">✕</span>
-        </button>
-        <div className="text-center">
-          <h2 className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Question {currentIndex + 1} of {questions.length}</h2>
-          <div className="w-32 bg-slate-100 h-1 rounded-full mt-1 overflow-hidden mx-auto">
-            <div 
-              className="bg-emerald-500 h-full transition-all duration-300" 
-              style={{ width: `${((currentIndex + 1) / questions.length) * 100}%` }}
-            />
+    <div className="flex flex-col h-full bg-slate-50 pb-20">
+      <div className="p-6 space-y-6">
+        <div className="flex justify-between items-center bg-white p-3 rounded-2xl shadow-sm border border-slate-100">
+          <div className="flex flex-col">
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Assessment Mode</span>
+            <span className="text-xs font-black text-slate-800">ITEM {currentIndex + 1} OF {questions.length}</span>
+          </div>
+          <div className="bg-emerald-50 text-emerald-600 px-4 py-1.5 rounded-full text-xs font-black border border-emerald-100">
+            {score} POINTS
           </div>
         </div>
-        <div className="bg-emerald-50 px-3 py-1 rounded-full text-emerald-600 font-black text-[10px] border border-emerald-100">
-          SCORE: {score}
-        </div>
-      </header>
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-6 pb-12">
-        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 relative">
-          <span className="absolute -top-3 left-8 bg-emerald-600 text-white text-[10px] font-black px-3 py-1 rounded-full uppercase">Clinical Scenario</span>
-          <h3 className="text-lg font-bold text-slate-800 leading-relaxed mt-2">
-            {currentQuestion.question}
-          </h3>
+        <div className="bg-white p-8 rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-slate-100">
+          <p className="text-lg font-bold text-slate-800 leading-relaxed text-center">
+            {q.question}
+          </p>
         </div>
 
         <div className="space-y-3">
-          {currentQuestion.options.map((option, idx) => {
+          {q.options.map((opt, idx) => {
+            const isCorrect = idx === q.correctIndex;
             const isSelected = selectedOption === idx;
-            const isCorrect = idx === currentQuestion.correctIndex;
             let btnClass = "bg-white border-slate-100 text-slate-700 shadow-sm";
             
             if (selectedOption !== null) {
-              if (isCorrect) btnClass = "bg-emerald-500 border-emerald-500 text-white shadow-emerald-100";
-              else if (isSelected) btnClass = "bg-red-500 border-red-500 text-white shadow-red-100";
-              else btnClass = "opacity-40 grayscale border-slate-50";
+              if (isCorrect) btnClass = "bg-emerald-500 border-emerald-500 text-white shadow-xl shadow-emerald-100 scale-105 z-10";
+              else if (isSelected) btnClass = "bg-red-500 border-red-500 text-white shadow-xl shadow-red-100 scale-105 z-10";
+              else btnClass = "opacity-30 grayscale border-transparent";
             } else {
-              btnClass += " hover:border-emerald-200 hover:bg-emerald-50/10 active:scale-[0.99]";
+              btnClass += " hover:border-emerald-300 transition-all active:scale-[0.98]";
             }
 
             return (
-              <button 
+              <button
                 key={idx}
                 disabled={selectedOption !== null}
                 onClick={() => handleAnswer(idx)}
-                className={`w-full p-5 rounded-2xl border-2 font-bold text-sm transition-all text-left flex items-center gap-4 ${btnClass}`}
+                className={`w-full p-5 rounded-[2rem] border-2 font-bold text-base flex items-center gap-4 ${btnClass}`}
               >
-                <span className={`w-8 h-8 rounded-full border border-current flex items-center justify-center text-xs shrink-0 ${selectedOption === null ? 'text-slate-200' : ''}`}>
+                <span className={`w-8 h-8 rounded-full border-2 flex items-center justify-center text-xs shrink-0 font-black ${
+                  selectedOption === null ? 'bg-slate-50 text-slate-400 border-slate-200' : 'bg-white/20 border-white/40'
+                }`}>
                   {String.fromCharCode(65 + idx)}
                 </span>
-                <span className="flex-1 leading-snug">{option}</span>
+                <span className="flex-1">{opt}</span>
               </button>
             );
           })}
         </div>
 
         {showExplanation && (
-          <div className="bg-blue-50 border-2 border-blue-100 p-6 rounded-[2.5rem] animate-in slide-in-from-top-4 duration-500">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600">💡</span>
-              <h4 className="text-xs font-black text-blue-600 uppercase tracking-widest">Clinical Explanation</h4>
+          <div className="bg-white border-2 border-emerald-100 p-8 rounded-[3rem] shadow-2xl shadow-emerald-100/20 animate-in slide-in-from-bottom-6 duration-700">
+            <div className="flex items-center gap-3 mb-4">
+              <span className="text-2xl">{selectedOption === q.correctIndex ? '⚡' : '📚'}</span>
+              <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest">Clinical Explanation</h4>
             </div>
-            <p className="text-sm text-blue-800 font-medium leading-relaxed">
-              {currentQuestion.explanation}
+            <p className="text-sm text-slate-600 font-medium leading-relaxed mb-8 italic">
+              {q.explanation}
             </p>
             <button 
               onClick={handleNext}
-              className="mt-6 w-full bg-blue-600 text-white py-4 rounded-2xl font-black text-sm shadow-lg shadow-blue-100 active:scale-95 transition-all flex items-center justify-center gap-2"
+              className="w-full bg-slate-900 text-white py-5 rounded-[2rem] font-black text-base shadow-xl active:scale-95 transition-all"
             >
-              {currentIndex === questions.length - 1 ? 'See Results 🏁' : 'Next Question ➡️'}
+              {currentIndex === questions.length - 1 ? 'Finalize Report' : 'Confirm & Continue'}
             </button>
           </div>
         )}
