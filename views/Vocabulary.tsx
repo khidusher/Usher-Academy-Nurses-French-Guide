@@ -74,18 +74,8 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
   const currentCard = VOCABULARY_DATA[currentIndex];
 
   return (
-    <div className="flex flex-col h-full bg-slate-50">
-      <header className="bg-emerald-600 text-white px-4 py-3 flex items-center justify-between shadow-md shrink-0">
-        <button onClick={() => setView(AppView.DASHBOARD)} className="p-2 hover:bg-emerald-700 rounded-full transition-colors">
-          <span className="text-xl">←</span>
-        </button>
-        <h2 className="text-sm font-bold uppercase tracking-wider text-center">
-          {isQuizMode ? 'Review Mode' : 'Flashcards'}
-        </h2>
-        <div className="w-10"></div>
-      </header>
-
-      <div className="flex-1 overflow-y-auto p-4 flex flex-col items-center">
+    <div className="flex flex-col h-full bg-slate-50 p-4">
+      <div className="flex-1 flex flex-col items-center">
         {isQuizMode ? (
           quizFinished ? (
             <div className="p-6 flex flex-col items-center justify-center min-h-[400px] text-center w-full animate-in fade-in zoom-in duration-300">

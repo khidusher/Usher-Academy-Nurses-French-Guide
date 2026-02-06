@@ -31,12 +31,9 @@ const Grammar: React.FC<GrammarProps> = ({ addXP, setView }) => {
 
   return (
     <div className="flex flex-col h-full bg-slate-50">
-      <header className="bg-emerald-600 text-white px-4 py-3 flex items-center justify-between shadow-md shrink-0">
-        <button onClick={() => setView(AppView.DASHBOARD)} className="p-2 hover:bg-emerald-700 rounded-full transition-colors">
-          <span className="text-xl">←</span>
-        </button>
-        <h2 className="text-xs font-bold uppercase tracking-wider">Grammar Lab</h2>
-        <div className="w-10"></div>
+      <header className="bg-white border-b border-slate-100 px-4 py-3 shrink-0">
+        <h2 className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Language Science</h2>
+        <p className="text-sm font-black text-slate-800">Grammar Lab</p>
       </header>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-6 pb-24">
