@@ -32,6 +32,7 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
   const currentSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const mountedRef = useRef(true);
 
+  // Initialize cache status
   useEffect(() => {
     mountedRef.current = true;
     const checkCache = async () => {
@@ -71,7 +72,6 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
   const playAudio = async (e: React.MouseEvent) => {
     e.stopPropagation();
     
-    // If already speaking, stop it
     if (isSpeaking) {
       stopCurrentAudio();
       return;
@@ -82,7 +82,7 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
     const indexAtStart = currentIndex;
     const frenchText = VOCABULARY_DATA[indexAtStart].french;
     
-    // 1. CRITICAL BROWSER FIX: Initialize or Resume AudioContext IMMEDIATELY on the click event
+    // CRITICAL FOR DEPLOYMENT: Init AudioContext immediately on user gesture
     if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
       audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
     }
@@ -98,13 +98,11 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
     
     setIsLoadingAudio(true);
     try {
-      // Check cache first
       let base64Audio = await audioCache.get(frenchText);
       
-      // If not in cache, fetch it
       if (!base64Audio) {
         if (!navigator.onLine) {
-          throw new Error("No internet connection and audio not saved.");
+          throw new Error("Connect to internet to hear this pronunciation.");
         }
         base64Audio = await getSpeech(frenchText);
         if (base64Audio) {
@@ -115,7 +113,6 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
         }
       }
       
-      // Safety: Did the user change the card while we were fetching?
       if (!mountedRef.current || currentIndex !== indexAtStart || !base64Audio) {
         setIsLoadingAudio(false);
         return;
@@ -124,7 +121,7 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
       const bytes = decode(base64Audio);
       const audioBuffer = await decodeAudioData(bytes, audioCtx, 24000, 1);
       
-      // Double check state before playing
+      // Ensure context is still active before playing
       if (audioCtx.state === 'suspended') {
         await audioCtx.resume();
       }
@@ -169,7 +166,7 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
     }
   };
 
-  // Quiz State
+  // Quiz State & Logic
   const [isQuizMode, setIsQuizMode] = useState(false);
   const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
   const [currentQuizIndex, setCurrentQuizIndex] = useState(0);
@@ -215,7 +212,7 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
   const downloadSpecificAudio = async (text: string) => {
     if (cachedItems.has(text) || individualDownloading.has(text)) return;
     if (!navigator.onLine) {
-      alert("Connect to the internet to save this audio.");
+      alert("Please connect to the internet to save this audio pack locally.");
       return;
     }
     setIndividualDownloading(prev => new Set(prev).add(text));
@@ -240,13 +237,15 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
 
   const downloadAllAudio = async () => {
     if (!navigator.onLine) {
-      alert("Please connect to the internet.");
+      alert("Please connect to the internet to download the clinical audio pack.");
       return;
     }
     const uncached = VOCABULARY_DATA.filter(item => !cachedItems.has(item.french));
     if (uncached.length === 0) return;
+    
     setIsDownloadingAll(true);
     setDownloadProgress({ current: 0, total: uncached.length });
+    
     let processedCount = 0;
     for (const item of uncached) {
       if (!mountedRef.current) break;
@@ -290,26 +289,37 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
           <button 
             onClick={downloadAllAudio} 
             disabled={isDownloadingAll || allDownloaded}
-            className={`text-[10px] font-bold px-4 py-2 rounded-xl border transition-all flex items-center gap-2 ${
+            className={`text-[10px] font-bold px-4 py-2 rounded-xl border transition-all duration-500 flex items-center gap-2 ${
               allDownloaded 
-              ? 'bg-emerald-500 text-white border-emerald-500 shadow-sm shadow-emerald-100' 
-              : 'bg-emerald-50 text-emerald-600 border-emerald-100 hover:bg-emerald-100 disabled:opacity-50'
+              ? 'bg-emerald-500 text-white border-emerald-500 shadow-sm shadow-emerald-100 ring-2 ring-emerald-100 ring-offset-1' 
+              : isDownloadingAll
+                ? 'bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed'
+                : 'bg-emerald-50 text-emerald-600 border-emerald-100 hover:bg-emerald-100'
             }`}
           >
-            {allDownloaded ? '✓ Pack Offline' : isDownloadingAll ? `⏳ ${Math.round((downloadProgress.current / downloadProgress.total) * 100)}%` : '📥 Download All'}
+            {allDownloaded ? (
+              <><span className="text-sm">✓</span> Pack Saved</>
+            ) : isDownloadingAll ? (
+              <><span className="animate-spin text-xs">⏳</span> {Math.round((downloadProgress.current / downloadProgress.total) * 100)}%</>
+            ) : (
+              <><span className="text-sm">📥</span> Download All</>
+            )}
           </button>
         </div>
-        {isDownloadingAll && (
-          <div className="w-full bg-emerald-100 h-1.5 rounded-full overflow-hidden">
-            <div className="bg-emerald-500 h-full transition-all duration-300" style={{ width: `${(downloadProgress.current / downloadProgress.total) * 100}%` }} />
-          </div>
-        )}
+        
+        {/* Progress Bar with smooth transition */}
+        <div className={`w-full bg-slate-100 h-1.5 rounded-full overflow-hidden transition-opacity duration-500 ${isDownloadingAll ? 'opacity-100' : 'opacity-0'}`}>
+          <div 
+            className="bg-emerald-500 h-full transition-all duration-500 ease-out" 
+            style={{ width: `${isDownloadingAll ? (downloadProgress.current / downloadProgress.total) * 100 : 0}%` }} 
+          />
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 flex flex-col items-center">
         {isQuizMode ? (
           quizFinished ? (
-            <div className="p-6 flex flex-col items-center justify-center min-h-[400px] text-center w-full">
+            <div className="p-6 flex flex-col items-center justify-center min-h-[400px] text-center w-full animate-in fade-in zoom-in duration-300">
               <div className={`w-24 h-24 rounded-full flex items-center justify-center text-4xl mb-6 shadow-xl ${((quizScore / quizQuestions.length) * 100) >= 75 ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
                 {((quizScore / quizQuestions.length) * 100) >= 75 ? '🎓' : '📚'}
               </div>
@@ -317,7 +327,7 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
                 {((quizScore / quizQuestions.length) * 100) >= 75 ? 'Lesson Passed!' : 'Needs Review'}
               </h2>
               <p className="text-slate-500 mb-6 font-medium">Score: <span className="font-bold text-slate-800">{(quizScore / quizQuestions.length) * 100}%</span></p>
-              <button onClick={() => setView(AppView.DASHBOARD)} className="w-full max-w-xs bg-emerald-500 text-white py-4 rounded-2xl font-black shadow-lg shadow-emerald-200">Finish Lesson</button>
+              <button onClick={() => setView(AppView.DASHBOARD)} className="w-full max-w-xs bg-emerald-500 text-white py-4 rounded-2xl font-black shadow-lg shadow-emerald-200 active:scale-95 transition-all">Finish Lesson</button>
             </div>
           ) : (
             <div className="flex flex-col items-center w-full max-w-sm">
@@ -359,15 +369,30 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
 
             <div className="w-full max-w-sm aspect-[4/5] relative perspective-1000 cursor-pointer" onClick={() => setIsFlipped(!isFlipped)}>
               <div className={`relative w-full h-full transition-all duration-500 [transform-style:preserve-3d] ${isFlipped ? '[transform:rotateY(180deg)]' : ''}`}>
-                {/* Front */}
+                {/* Front Card */}
                 <div className="absolute inset-0 bg-white border-2 border-slate-100 rounded-[3rem] shadow-xl shadow-slate-200/50 flex flex-col items-center justify-center p-8 [backface-visibility:hidden]">
                   <div className="absolute top-8 left-0 right-0 px-8 flex items-center justify-between">
                     <span className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">{currentCard.category}</span>
+                    
+                    {/* Individual Download Indicator */}
                     <button 
+                      disabled={isCurrentlyCached || isCurrentlyIndividualDownloading}
                       onClick={(e) => { e.stopPropagation(); downloadSpecificAudio(currentCard.french); }} 
-                      className={`px-3 py-1.5 rounded-full text-[9px] font-black uppercase transition-colors ${isCurrentlyCached ? 'text-emerald-500 bg-emerald-50' : 'text-slate-400 bg-slate-50'}`}
+                      className={`px-3 py-1.5 rounded-full text-[9px] font-black uppercase transition-all duration-300 flex items-center gap-1.5 border ${
+                        isCurrentlyCached 
+                          ? 'text-emerald-500 bg-emerald-50 border-emerald-100 shadow-sm shadow-emerald-50' 
+                          : isCurrentlyIndividualDownloading 
+                            ? 'text-amber-500 bg-amber-50 border-amber-100 animate-pulse' 
+                            : 'text-slate-400 bg-slate-50 border-slate-100 hover:text-emerald-600 hover:bg-emerald-50'
+                      }`}
                     >
-                      {isCurrentlyCached ? '✓ Saved' : isCurrentlyIndividualDownloading ? '⏳ Saving' : '📥 Save'}
+                      {isCurrentlyCached ? (
+                        <><span className="text-xs">✓</span> Saved</>
+                      ) : isCurrentlyIndividualDownloading ? (
+                        <><span className="animate-spin text-[8px]">⏳</span> Saving...</>
+                      ) : (
+                        <><span className="text-xs">📥</span> Save</>
+                      )}
                     </button>
                   </div>
                   
@@ -398,13 +423,13 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
                         {isSpeaking ? 'Now Playing' : isLoadingAudio ? 'Loading Audio...' : 'Hear Pronunciation'}
                       </p>
                       {isCurrentlyCached && !isSpeaking && !isLoadingAudio && (
-                        <span className="text-[9px] font-bold text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-full">Stored Locally ✓</span>
+                        <span className="text-[9px] font-bold text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-full animate-in fade-in slide-in-from-bottom-1 duration-300">Stored Locally ✓</span>
                       )}
                     </div>
                   </div>
                 </div>
 
-                {/* Back */}
+                {/* Back Card */}
                 <div className="absolute inset-0 bg-emerald-600 border-2 border-white/20 rounded-[3rem] shadow-xl flex flex-col items-center justify-center p-8 [backface-visibility:hidden] [transform:rotateY(180deg)]">
                   <span className="text-emerald-100/50 text-[10px] font-bold uppercase tracking-[0.2em] mb-8">Meaning</span>
                   <h3 className="text-4xl font-black text-white text-center leading-tight">{currentCard.english}</h3>
