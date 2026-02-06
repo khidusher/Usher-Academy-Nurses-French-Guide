@@ -160,7 +160,7 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
     
     const card = VOCABULARY_DATA[currentIndex];
     
-    // Critical: Create or resume context immediately upon user gesture
+    // Resume context on user gesture to avoid browser blocks
     if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
       audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
     }
@@ -174,14 +174,22 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
 
       let base64Audio = await audioCache.get(card.french);
       
+      // If not in cache and offline, fail early
+      if (!base64Audio && !navigator.onLine) {
+        throw new Error("Offline and no cached audio.");
+      }
+
+      // Fetch if not cached
       if (!base64Audio) {
-        if (!navigator.onLine) {
-          throw new Error("Offline and no cached audio.");
-        }
         base64Audio = await getSpeech(card.french);
         if (base64Audio) {
+          // Auto-cache the successfully fetched audio
           await audioCache.set(card.french, base64Audio);
-          setCachedItems(prev => new Set(prev).add(card.french));
+          setCachedItems(prev => {
+            const next = new Set(prev);
+            next.add(card.french);
+            return next;
+          });
         }
       }
       
@@ -195,16 +203,22 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
           setIsSpeaking(false);
         };
 
+        // Transition states: Stop loading, Start speaking
         setIsLoadingAudio(false);
         setIsSpeaking(true);
         source.start(0);
       } else {
-        throw new Error("No audio data available.");
+        throw new Error("Audio generation returned no data.");
       }
     } catch (error) {
       console.error("Audio Playback Error:", error);
       setIsLoadingAudio(false);
       setIsSpeaking(false);
+      // Reset context if it broke
+      if (audioCtx.state !== 'closed') {
+        await audioCtx.close();
+        audioCtxRef.current = null;
+      }
     }
   };
 
@@ -396,23 +410,32 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
                     <button 
                       onClick={playAudio} 
                       disabled={isLoadingAudio}
-                      className={`w-20 h-20 rounded-full flex items-center justify-center transition-all shadow-xl ${
+                      className={`w-24 h-24 rounded-full flex items-center justify-center transition-all shadow-xl relative overflow-hidden ${
                         isSpeaking 
-                        ? 'bg-emerald-100 text-emerald-600 scale-90 ring-4 ring-emerald-200' 
+                        ? 'bg-emerald-100 text-emerald-600 scale-95 ring-4 ring-emerald-200' 
                         : isLoadingAudio
                           ? 'bg-slate-100 text-slate-400 cursor-wait'
                           : 'bg-emerald-500 text-white hover:scale-110 active:scale-90 shadow-emerald-200 shadow-lg'
                       }`}
                     >
-                      {isLoadingAudio ? (
-                        <span className="w-8 h-8 border-4 border-slate-300 border-t-emerald-500 rounded-full animate-spin"></span>
-                      ) : (
-                        <span className="text-4xl">{isSpeaking ? '🔊' : '▶️'}</span>
+                      {/* Visual progress for loading */}
+                      {isLoadingAudio && (
+                        <div className="absolute inset-0 border-4 border-slate-200 border-t-emerald-500 rounded-full animate-spin"></div>
                       )}
+                      
+                      <span className={`text-5xl transition-transform ${isSpeaking ? 'animate-bounce' : ''}`}>
+                        {isSpeaking ? '🔊' : isLoadingAudio ? '⏳' : '▶️'}
+                      </span>
                     </button>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                      {isSpeaking ? 'Now Playing...' : isLoadingAudio ? 'Preparing Audio...' : 'Listen to Pronunciation'}
-                    </p>
+                    
+                    <div className="flex flex-col items-center gap-1">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                        {isSpeaking ? 'Now Playing...' : isLoadingAudio ? 'Fetching Audio...' : 'Listen to Pronunciation'}
+                      </p>
+                      {isCurrentlyCached && !isSpeaking && !isLoadingAudio && (
+                        <span className="text-[9px] font-bold text-emerald-500 uppercase tracking-tight">Stored Locally ✓</span>
+                      )}
+                    </div>
                   </div>
                 </div>
 
