@@ -1,4 +1,5 @@
 
+// Fixed: Removed duplicate 'export' keyword on the following line
 export enum AppView {
   AUTH = 'AUTH',
   DASHBOARD = 'DASHBOARD',
@@ -35,7 +36,6 @@ export interface Flashcard {
   french: string;
   english: string;
   category: string;
-  audioUrl?: string;
 }
 
 export interface ExamQuestion {

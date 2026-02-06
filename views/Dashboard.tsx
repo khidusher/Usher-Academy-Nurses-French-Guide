@@ -15,7 +15,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, progress, setView, onLogout
   const currentWeek = WEEKLY_ROADMAP[currentWeekIdx];
 
   const handleLessonSelect = (idx: number) => {
-    // Only allow current or previous weeks
     if (idx <= currentWeekIdx) {
       setView(AppView.VOCABULARY);
     }
@@ -23,7 +22,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, progress, setView, onLogout
 
   return (
     <div className="p-4 space-y-6">
-      {/* Welcome Section */}
       <div className="bg-gradient-to-br from-emerald-500 to-teal-600 p-6 rounded-3xl text-white shadow-lg relative overflow-hidden">
         <div className="relative z-10">
           <div className="flex justify-between items-start mb-1">
@@ -41,7 +39,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, progress, setView, onLogout
               onClick={() => setView(AppView.ORAL_SIMULATOR)}
               className="bg-emerald-400/40 text-white px-4 py-3 rounded-2xl font-black text-sm border border-white/20 hover:bg-emerald-400/60 transition-colors flex items-center justify-center gap-2"
             >
-              🎙️ Practice Oral
+              💬 Chat Simulation
             </button>
           </div>
         </div>
@@ -50,7 +48,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, progress, setView, onLogout
         </div>
       </div>
 
-      {/* Quick Stats Grid */}
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100">
           <p className="text-[10px] text-blue-600 font-bold uppercase mb-1">Vocabulary</p>
@@ -71,7 +68,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, progress, setView, onLogout
         </div>
       </div>
 
-      {/* Learning Roadmap */}
       <div>
         <div className="flex items-center justify-between mb-4 px-1">
           <h3 className="text-lg font-bold text-slate-800">8-Week Roadmap</h3>
