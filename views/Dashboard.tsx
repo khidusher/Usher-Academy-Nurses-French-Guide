@@ -34,15 +34,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, progress, setView, onLogout
           <div className="flex gap-2">
             <button 
               onClick={() => setView(AppView.VOCABULARY)}
-              className="flex-1 bg-white text-emerald-600 px-4 py-3 rounded-2xl font-black text-sm shadow-sm hover:bg-emerald-50 transition-colors flex items-center justify-center gap-2"
+              className="w-full bg-white text-emerald-600 px-4 py-3 rounded-2xl font-black text-sm shadow-sm hover:bg-emerald-50 transition-colors flex items-center justify-center gap-2"
             >
               ▶️ Start Lesson
-            </button>
-            <button 
-              onClick={() => setView(AppView.ORAL_SIMULATOR)}
-              className="bg-emerald-400/40 text-white px-4 py-3 rounded-2xl font-black text-sm border border-white/20 hover:bg-emerald-400/60 transition-colors flex items-center justify-center gap-2"
-            >
-              💬 Chat Simulation
             </button>
           </div>
         </div>

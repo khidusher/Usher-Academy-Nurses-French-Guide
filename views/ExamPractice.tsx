@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect, useRef } from 'react';
-import { generateExamQuestions } from '../services/gemini';
+import { generateExamQuestions } from '../services/examService';
 import { ExamQuestion, AppView, ExamRecord } from '../types';
 import { EXAMS_SCHEMA } from '../constants';
 
@@ -12,6 +11,7 @@ interface ExamPracticeProps {
 
 const ExamPractice: React.FC<ExamPracticeProps> = ({ addXP, setView, saveExamResult }) => {
   const [activeStep, setActiveStep] = useState<'SELECT' | 'SYNC' | 'QUIZ' | 'RESULT'>('SELECT');
+  const [selectedWeek, setSelectedWeek] = useState<number>(1);
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
   const [selectedLessonTitle, setSelectedLessonTitle] = useState<string | null>(null);
   const [questions, setQuestions] = useState<ExamQuestion[]>([]);
@@ -19,6 +19,7 @@ const ExamPractice: React.FC<ExamPracticeProps> = ({ addXP, setView, saveExamRes
   const [timeLeft, setTimeLeft] = useState(0);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<(number | null)[]>([]);
+  const [isConfirmed, setIsConfirmed] = useState(false);
   const [syncProgress, setSyncProgress] = useState(0);
   const [startTime, setStartTime] = useState<number>(0);
   const timerRef = useRef<number | null>(null);
@@ -30,23 +31,24 @@ const ExamPractice: React.FC<ExamPracticeProps> = ({ addXP, setView, saveExamRes
     setSyncProgress(0);
     
     const interval = setInterval(() => {
-      setSyncProgress(p => Math.min(99, p + Math.random() * 10));
-    }, 150);
+      setSyncProgress(p => Math.min(99, p + Math.random() * 20));
+    }, 100);
 
     try {
-      // FIX: Pass raw lessonId to ensure repository lookup works
       const q = await generateExamQuestions(lessonId);
       setQuestions(q);
       setAnswers(new Array(q.length).fill(null));
+      setIsConfirmed(false);
+      setCurrentIndex(0);
       setSyncProgress(100);
       setTimeout(() => {
         setActiveStep('QUIZ');
         setStartTime(Date.now());
-        if (isTimed) setTimeLeft(q.length * 45); // 45s per question
-      }, 600);
+        if (isTimed) setTimeLeft(q.length * 45); 
+      }, 500);
     } catch (err) {
-      console.error("Sync Error Details:", err);
-      alert("Encryption Error: Secure exam sync failed. Please check your data connection and API key.");
+      console.error("Exam Load Error:", err);
+      alert("Local Exam Data Error: Please contact Usher Academy support.");
       setActiveStep('SELECT');
     } finally {
       clearInterval(interval);
@@ -70,9 +72,24 @@ const ExamPractice: React.FC<ExamPracticeProps> = ({ addXP, setView, saveExamRes
   }, [activeStep, isTimed, timeLeft]);
 
   const handleSelectOption = (idx: number) => {
+    if (isConfirmed) return;
     const newAnswers = [...answers];
     newAnswers[currentIndex] = idx;
     setAnswers(newAnswers);
+  };
+
+  const handleConfirm = () => {
+    if (answers[currentIndex] === null) return;
+    setIsConfirmed(true);
+  };
+
+  const handleNext = () => {
+    if (currentIndex < questions.length - 1) {
+      setCurrentIndex(c => c + 1);
+      setIsConfirmed(false);
+    } else {
+      finalizeExam();
+    }
   };
 
   const finalizeExam = () => {
@@ -102,18 +119,39 @@ const ExamPractice: React.FC<ExamPracticeProps> = ({ addXP, setView, saveExamRes
   };
 
   if (activeStep === 'SELECT') {
+    const currentWeekData = EXAMS_SCHEMA.weeks.find(w => w.week === selectedWeek);
+
     return (
       <div className="flex flex-col h-full bg-slate-50 overflow-y-auto pb-32">
-        <header className="p-8 pb-4 text-center space-y-2">
+        <header className="p-8 pb-4 text-center space-y-2 bg-white">
           <h2 className="text-3xl font-black text-slate-800 tracking-tight">Exam Center</h2>
-          <p className="text-xs text-slate-400 font-black uppercase tracking-widest">Master 10 Clinical MCQs per Lesson</p>
+          <p className="text-xs text-slate-400 font-black uppercase tracking-widest">Master 160 Clinical MCQs</p>
         </header>
 
-        <div className="px-6 space-y-8">
+        {/* Week Selector Tabs */}
+        <div className="bg-white border-b border-slate-100 px-4 sticky top-0 z-30">
+          <div className="flex gap-2 overflow-x-auto py-4 scrollbar-hide no-scrollbar">
+            {EXAMS_SCHEMA.weeks.map((week) => (
+              <button
+                key={week.week}
+                onClick={() => setSelectedWeek(week.week)}
+                className={`shrink-0 px-6 py-2.5 rounded-full text-xs font-black uppercase tracking-widest transition-all ${
+                  selectedWeek === week.week 
+                    ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-200' 
+                    : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                }`}
+              >
+                Week {week.week}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="px-6 py-8 space-y-8">
           <div className="bg-slate-900 p-6 rounded-[2.5rem] text-white shadow-2xl flex justify-between items-center group">
             <div className="space-y-1">
               <h3 className="font-black text-lg flex items-center gap-2">⏱️ Timed Mode</h3>
-              <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest group-hover:text-emerald-400 transition-colors">Double XP & Real-time Pressure</p>
+              <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">Double XP Rewards</p>
             </div>
             <button 
               onClick={() => setIsTimed(!isTimed)}
@@ -123,38 +161,34 @@ const ExamPractice: React.FC<ExamPracticeProps> = ({ addXP, setView, saveExamRes
             </button>
           </div>
 
-          <div className="space-y-10">
-            {EXAMS_SCHEMA.weeks.map((week) => (
-              <div key={week.week} className="space-y-4">
-                <div className="flex items-center gap-4">
-                  <span className="bg-emerald-600 text-white px-4 py-1.5 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-sm">Week {week.week}</span>
-                  <div className="h-px bg-slate-200 flex-1" />
-                </div>
-                <p className="text-sm font-black text-slate-800 px-1">{week.title}</p>
-                <div className="grid grid-cols-1 gap-3">
-                  {week.lessons.map(lesson => (
-                    <button
-                      key={lesson.id}
-                      onClick={() => startExam(lesson.id, lesson.title)}
-                      className="w-full bg-white p-5 rounded-[2rem] border-2 border-slate-100 flex items-center justify-between group active:scale-[0.98] transition-all hover:border-emerald-500 hover:shadow-xl"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-xl group-hover:bg-emerald-50 transition-all shadow-inner">
-                          {lesson.icon || '📑'}
-                        </div>
-                        <div className="text-left">
-                          <p className="font-black text-slate-800 text-base">{lesson.title}</p>
-                          <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">10 Clinical Questions</p>
-                        </div>
-                      </div>
-                      <div className="bg-slate-50 text-slate-300 group-hover:bg-emerald-500 group-hover:text-white w-9 h-9 rounded-full flex items-center justify-center transition-all border border-slate-100">
-                        <span className="text-base font-bold">→</span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
+          <div className="space-y-6">
+            <div className="flex items-center justify-between px-2">
+              <h3 className="text-base font-black text-slate-800">{currentWeekData?.title}</h3>
+              <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-1 rounded-lg font-black uppercase">Active</span>
+            </div>
+            
+            <div className="grid grid-cols-1 gap-4">
+              {currentWeekData?.lessons.map(lesson => (
+                <button
+                  key={lesson.id}
+                  onClick={() => startExam(lesson.id, lesson.title)}
+                  className="w-full bg-white p-6 rounded-[2.5rem] border-2 border-slate-100 flex items-center justify-between group active:scale-[0.98] transition-all hover:border-emerald-500 hover:shadow-xl hover:shadow-emerald-50"
+                >
+                  <div className="flex items-center gap-5">
+                    <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center text-2xl group-hover:bg-emerald-50 transition-all shadow-inner border border-slate-100">
+                      {lesson.icon || '📑'}
+                    </div>
+                    <div className="text-left">
+                      <p className="font-black text-slate-800 text-lg">{lesson.title}</p>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Ghana Clinical Standard</p>
+                    </div>
+                  </div>
+                  <div className="bg-slate-50 text-slate-300 group-hover:bg-emerald-500 group-hover:text-white w-10 h-10 rounded-full flex items-center justify-center transition-all border border-slate-100">
+                    <span className="text-lg font-bold">→</span>
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -165,27 +199,26 @@ const ExamPractice: React.FC<ExamPracticeProps> = ({ addXP, setView, saveExamRes
     return (
       <div className="flex flex-col items-center justify-center h-full p-8 bg-white text-center">
         <div className="relative mb-12">
-          <div className="w-28 h-28 bg-emerald-600 rounded-[3rem] flex items-center justify-center shadow-2xl relative z-10 animate-pulse border-8 border-emerald-50">
-            <span className="text-5xl">🔐</span>
+          <div className="w-32 h-32 bg-emerald-600 rounded-[3.5rem] flex items-center justify-center shadow-2xl relative z-10 border-8 border-emerald-50 animate-bounce">
+            <span className="text-5xl">💉</span>
           </div>
-          <div className="absolute inset-0 bg-emerald-500/10 rounded-full animate-ping scale-125 opacity-20"></div>
+          <div className="absolute inset-0 bg-emerald-500/10 rounded-full animate-ping scale-150 opacity-20"></div>
         </div>
         <div className="w-full max-w-xs space-y-6">
           <div className="space-y-2">
-            <h3 className="text-2xl font-black text-slate-800">Exam Generation</h3>
-            <p className="text-[10px] text-emerald-600 font-black uppercase tracking-[0.3em]">{selectedLessonTitle?.toUpperCase()}</p>
+            <h3 className="text-2xl font-black text-slate-800">Retrieving Clinic Data</h3>
+            <p className="text-[10px] text-emerald-600 font-black uppercase tracking-[0.3em]">{selectedLessonTitle}</p>
           </div>
           <div className="space-y-3">
             <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden p-0.5 border border-slate-50">
               <div 
-                className="bg-gradient-to-r from-emerald-500 to-teal-400 h-full transition-all duration-300 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.3)]" 
+                className="bg-gradient-to-r from-emerald-500 to-teal-400 h-full transition-all duration-300 rounded-full" 
                 style={{ width: `${syncProgress}%` }} 
               />
             </div>
-            <div className="flex justify-between text-[10px] font-black text-slate-300 uppercase tracking-widest">
-              <span>NMC-GH V5.2 SECURE</span>
-              <span>{Math.round(syncProgress)}%</span>
-            </div>
+            <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">
+              Ready to Practice
+            </p>
           </div>
         </div>
       </div>
@@ -194,6 +227,7 @@ const ExamPractice: React.FC<ExamPracticeProps> = ({ addXP, setView, saveExamRes
 
   if (activeStep === 'QUIZ') {
     const q = questions[currentIndex];
+    const userChoice = answers[currentIndex];
     const formatTime = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
     const progressPerc = ((currentIndex + 1) / questions.length) * 100;
 
@@ -203,7 +237,7 @@ const ExamPractice: React.FC<ExamPracticeProps> = ({ addXP, setView, saveExamRes
           <div className="flex items-center gap-4">
             <button onClick={() => setActiveStep('SELECT')} className="text-slate-300 hover:text-slate-600 transition-colors">✕</button>
             <div className="bg-slate-900 text-white px-4 py-1.5 rounded-2xl">
-              <span className="text-[10px] font-black tracking-widest uppercase">Item {currentIndex + 1} / {questions.length}</span>
+              <span className="text-[10px] font-black tracking-widest uppercase">Question {currentIndex + 1} / {questions.length}</span>
             </div>
           </div>
           {isTimed && (
@@ -218,23 +252,33 @@ const ExamPractice: React.FC<ExamPracticeProps> = ({ addXP, setView, saveExamRes
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-8 pb-32">
-          <div className="bg-white p-10 rounded-[3rem] shadow-xl shadow-slate-200/50 border border-slate-100 relative group overflow-hidden">
-            <h3 className="text-xl font-bold text-slate-800 leading-relaxed text-center relative z-10">{q.question}</h3>
+          <div className="bg-white p-10 rounded-[3rem] shadow-xl shadow-slate-200/50 border border-slate-100 text-center">
+            <h3 className="text-xl font-bold text-slate-800 leading-relaxed">{q.question}</h3>
           </div>
 
           <div className="space-y-4">
             {q.options.map((opt, idx) => {
-              const isSelected = answers[currentIndex] === idx;
+              const isSelected = userChoice === idx;
+              const isCorrect = q.correctIndex === idx;
+              
+              let choiceStyle = "bg-white border-slate-100 text-slate-700";
+              if (isSelected) choiceStyle = "bg-emerald-600 border-emerald-600 text-white scale-[1.02] shadow-xl";
+              
+              if (isConfirmed) {
+                if (isCorrect) choiceStyle = "bg-emerald-500 border-emerald-500 text-white shadow-lg shadow-emerald-100";
+                else if (isSelected) choiceStyle = "bg-red-500 border-red-500 text-white shadow-lg shadow-red-100";
+                else choiceStyle = "bg-white border-slate-100 text-slate-300 opacity-50";
+              }
+
               return (
                 <button
                   key={idx}
+                  disabled={isConfirmed}
                   onClick={() => handleSelectOption(idx)}
-                  className={`w-full p-6 rounded-[2.5rem] border-2 font-bold text-base text-left flex items-center gap-5 transition-all shadow-sm ${
-                    isSelected ? 'bg-emerald-600 border-emerald-600 text-white scale-[1.02] shadow-xl' : 'bg-white border-slate-100 text-slate-700'
-                  }`}
+                  className={`w-full p-6 rounded-[2.5rem] border-2 font-bold text-base text-left flex items-center gap-5 transition-all shadow-sm ${choiceStyle}`}
                 >
                   <span className={`w-10 h-10 rounded-2xl border-2 flex items-center justify-center text-sm shrink-0 font-black ${
-                     isSelected ? 'bg-white/20 border-white/40' : 'bg-slate-50 border-slate-200'
+                     isSelected || (isConfirmed && isCorrect) ? 'bg-white/20 border-white/40' : 'bg-slate-50 border-slate-200'
                   }`}>
                     {String.fromCharCode(65 + idx)}
                   </span>
@@ -243,22 +287,39 @@ const ExamPractice: React.FC<ExamPracticeProps> = ({ addXP, setView, saveExamRes
               );
             })}
           </div>
+
+          {isConfirmed && (
+            <div className="bg-white p-6 rounded-[2rem] border-2 border-slate-100 animate-in fade-in slide-in-from-bottom-4 duration-300">
+               <div className="flex items-center gap-3 mb-2">
+                 <span className="text-xl">{userChoice === q.correctIndex ? '✅' : '❌'}</span>
+                 <p className={`font-black uppercase tracking-widest text-[10px] ${userChoice === q.correctIndex ? 'text-emerald-600' : 'text-red-500'}`}>
+                   {userChoice === q.correctIndex ? 'Correct Analysis' : 'Clinical Correction'}
+                 </p>
+               </div>
+               <p className="text-xs text-slate-600 leading-relaxed font-medium italic">{q.explanation}</p>
+            </div>
+          )}
         </div>
 
         <footer className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-lg bg-white/95 backdrop-blur-md p-6 flex justify-between border-t border-slate-100 z-[1100] pb-10">
-           <button disabled={currentIndex === 0} onClick={() => setCurrentIndex(c => c - 1)} className="text-xs font-black text-slate-400 disabled:opacity-20 px-4">← Back</button>
-           <button 
-             onClick={() => {
-               if (currentIndex < questions.length - 1) setCurrentIndex(c => c + 1);
-               else finalizeExam();
-             }}
-             disabled={answers[currentIndex] === null}
-             className={`px-10 py-5 rounded-[2rem] font-black text-xs uppercase tracking-widest shadow-xl transition-all ${
-               answers[currentIndex] === null ? 'bg-slate-100 text-slate-300' : 'bg-slate-900 text-white active:scale-95'
-             }`}
-           >
-             {currentIndex === questions.length - 1 ? 'Finish Exam 🏁' : 'Continue ➡️'}
-           </button>
+           {!isConfirmed ? (
+             <button 
+                onClick={handleConfirm}
+                disabled={userChoice === null}
+                className={`w-full py-5 rounded-[2rem] font-black text-xs uppercase tracking-widest shadow-xl transition-all ${
+                  userChoice === null ? 'bg-slate-100 text-slate-300 cursor-not-allowed' : 'bg-emerald-600 text-white active:scale-95'
+                }`}
+             >
+                Confirm Analysis 💉
+             </button>
+           ) : (
+             <button 
+                onClick={handleNext}
+                className="w-full py-5 bg-slate-900 text-white rounded-[2rem] font-black text-xs uppercase tracking-widest shadow-xl active:scale-95 animate-in zoom-in duration-200"
+             >
+                {currentIndex === questions.length - 1 ? 'Finish Exam 🏁' : 'Submit & Next ➡️'}
+             </button>
+           )}
         </footer>
       </div>
     );
@@ -277,7 +338,7 @@ const ExamPractice: React.FC<ExamPracticeProps> = ({ addXP, setView, saveExamRes
         </div>
         
         <div className="text-center space-y-3 mb-12">
-          <h2 className="text-4xl font-black text-slate-800 tracking-tight">{passed ? 'Qualified!' : 'Revision Needed'}</h2>
+          <h2 className="text-4xl font-black text-slate-800 tracking-tight">{passed ? 'Qualified!' : 'Revision Required'}</h2>
           <p className="text-xs text-slate-500 font-black uppercase tracking-[0.3em]">{selectedLessonTitle}</p>
         </div>
 
@@ -293,25 +354,8 @@ const ExamPractice: React.FC<ExamPracticeProps> = ({ addXP, setView, saveExamRes
         </div>
 
         <div className="w-full max-w-sm space-y-4 px-4">
-          <button onClick={() => setActiveStep('SELECT')} className="w-full bg-emerald-600 text-white py-6 rounded-[2.5rem] font-black text-lg shadow-2xl active:scale-95 transition-all">🔄 Next Lesson</button>
+          <button onClick={() => setActiveStep('SELECT')} className="w-full bg-emerald-600 text-white py-6 rounded-[2.5rem] font-black text-lg shadow-2xl active:scale-95 transition-all">🔄 Try Another Lesson</button>
           <button onClick={() => setView(AppView.DASHBOARD)} className="w-full bg-white text-slate-500 border-2 border-slate-100 py-5 rounded-[2.5rem] font-black text-sm active:scale-95 transition-all">🏠 Home</button>
-        </div>
-
-        <div className="mt-16 bg-white p-10 rounded-[3.5rem] border-2 border-slate-100 w-full max-w-sm shadow-xl">
-           <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-8">Performance Analysis</h4>
-           <div className="space-y-6">
-             {questions.map((q, idx) => (
-               <div key={idx} className="flex gap-4 text-left border-b border-slate-50 pb-4 last:border-none">
-                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm shrink-0 border ${answers[idx] === q.correctIndex ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
-                    {answers[idx] === q.correctIndex ? '✓' : '✕'}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-black text-slate-800 mb-1 leading-snug">{q.question}</p>
-                    <p className="text-[10px] text-slate-400 italic leading-relaxed">{q.explanation}</p>
-                  </div>
-               </div>
-             ))}
-           </div>
         </div>
       </div>
     );

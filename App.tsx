@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { AppView, UserProgress, User, ExamRecord } from './types.ts';
 import { NAVIGATION_ITEMS, LEVELS } from './constants.tsx';
@@ -11,7 +10,6 @@ import Support from './views/Support.tsx';
 import Auth from './views/Auth.tsx';
 import EditProfile from './views/EditProfile.tsx';
 import Profile from './views/Profile.tsx';
-import OralSimulator from './views/OralSimulator.tsx';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(() => {
@@ -82,9 +80,6 @@ const App: React.FC = () => {
 
   const saveExamResult = (record: ExamRecord) => {
     setProgress(prev => {
-      // Keep only the best record for each lesson or keep a history? 
-      // User requested "saved per lesson", usually means historical or latest.
-      // We'll append it for now as per "examRecords: ExamRecord[]"
       return {
         ...prev,
         examRecords: [record, ...prev.examRecords].slice(0, 50) // Keep last 50 attempts
@@ -131,7 +126,6 @@ const App: React.FC = () => {
       case AppView.SUPPORT: return <Support progress={progress} onSupport={markAsSupporter} />;
       case AppView.PROFILE: return <Profile user={user} progress={progress} setView={setCurrentView} onLogout={handleLogout} />;
       case AppView.EDIT_PROFILE: return user ? <EditProfile user={user} onUpdate={handleUpdateUser} onCancel={() => setCurrentView(AppView.PROFILE)} /> : <Auth onLogin={handleLogin} />;
-      case AppView.ORAL_SIMULATOR: return <OralSimulator addXP={addXP} setView={setCurrentView} />;
       default: return <Dashboard user={user} progress={progress} setView={setCurrentView} onLogout={handleLogout} />;
     }
   };
