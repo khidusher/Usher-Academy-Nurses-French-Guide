@@ -3,8 +3,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 
 /**
  * INTERNAL DATA REPOSITORY
- * These questions are 'in-built' and processed by Gemini to provide 
- * clinical explanations and secure delivery.
+ * 160 Static Questions provided by user
  */
 const IN_BUILT_EXAM_DATA: Record<string, any[]> = {
   "basics": [
@@ -97,7 +96,7 @@ const IN_BUILT_EXAM_DATA: Record<string, any[]> = {
     { q: "La tension artérielle est mesurée avec…", a: ["un thermomètre", "un stéthoscope", "un tensiomètre", "une balance"], c: 2 },
     { q: "La respiration rapide est appelée…", a: ["bradycardie", "fièvre", "tachypnée", "douleur"], c: 2 },
     { q: "Observer la peau permet de détecter…", a: ["la faim", "des infections", "le sommeil", "la voix"], c: 1 },
-    { q: "La douleur peut être évaluée avec…", a: ["une échelle de douleur", "une balance", "une montre", "un thermomètre"], c: 0 },
+    { q: "La douleur peut être évaluée with…", a: ["une échelle de douleur", "une balance", "une montre", "un thermomètre"], c: 0 },
     { q: "Les signes vitaux incluent…", a: ["taille", "poids", "température, pouls, respiration", "âge"], c: 2 },
     { q: "Une observation doit être…", a: ["oubliée", "notée correctement", "racontée", "chantée"], c: 1 },
     { q: "Le pouls mesure…", a: ["la respiration", "le battement du cœur", "la fièvre", "la douleur"], c: 1 },
@@ -216,26 +215,26 @@ export const getGeminiResponse = async (prompt: string, systemInstruction: strin
 
 /**
  * Generates 10 exam questions for a given lesson.
- * Relies on the in-built data repository while using Gemini to
- * dynamically generate clinical explanations (Clinical Pearls).
  */
 export const generateExamQuestions = async (lessonId: string) => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
-  // Extract lesson ID from the roadmap title if needed, 
-  // but the app now passes lessonId directly.
-  const questionsData = IN_BUILT_EXAM_DATA[lessonId] || IN_BUILT_EXAM_DATA["basics"];
+  // SECURE FALLBACK: Ensure the ID matches one of our keys
+  const questionsData = IN_BUILT_EXAM_DATA[lessonId];
+  if (!questionsData) {
+    throw new Error(`Lesson ID '${lessonId}' not found in internal exam repository.`);
+  }
 
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
-    contents: `Format these 10 in-built clinical questions for a Ghanaian Nursing Student.
+    contents: `Process these 10 in-built clinical questions for Ghanaian Nursing Students.
     Lesson ID: ${lessonId}
-    Data: ${JSON.stringify(questionsData)}
+    Questions: ${JSON.stringify(questionsData)}
     
-    Task: 
+    Task:
     1. Output the provided questions exactly.
-    2. For EACH question, generate a professional 'Clinical Pearl' explanation (max 120 chars) in English explaining why the correct answer is clinical standard in Ghana.
-    3. Return strictly in the required JSON array format.`,
+    2. For each, generate a 'Clinical Pearl' explanation in English (max 110 characters).
+    3. Return in the specified JSON array format.`,
     config: {
       responseMimeType: "application/json",
       responseSchema: {
@@ -256,6 +255,5 @@ export const generateExamQuestions = async (lessonId: string) => {
   });
   
   const parsed = JSON.parse(response.text);
-  // Ensure we mapped correctly and return
   return Array.isArray(parsed) ? parsed.slice(0, 10) : [];
 };

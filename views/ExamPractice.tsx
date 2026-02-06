@@ -34,7 +34,8 @@ const ExamPractice: React.FC<ExamPracticeProps> = ({ addXP, setView, saveExamRes
     }, 150);
 
     try {
-      const q = await generateExamQuestions(`${lessonTitle} (${lessonId})`);
+      // FIX: Pass raw lessonId to ensure repository lookup works
+      const q = await generateExamQuestions(lessonId);
       setQuestions(q);
       setAnswers(new Array(q.length).fill(null));
       setSyncProgress(100);
@@ -44,7 +45,8 @@ const ExamPractice: React.FC<ExamPracticeProps> = ({ addXP, setView, saveExamRes
         if (isTimed) setTimeLeft(q.length * 45); // 45s per question
       }, 600);
     } catch (err) {
-      alert("Encryption Error: Secure exam sync failed. Please check your data connection.");
+      console.error("Sync Error Details:", err);
+      alert("Encryption Error: Secure exam sync failed. Please check your data connection and API key.");
       setActiveStep('SELECT');
     } finally {
       clearInterval(interval);
@@ -79,7 +81,6 @@ const ExamPractice: React.FC<ExamPracticeProps> = ({ addXP, setView, saveExamRes
     const xpBase = score * 20;
     const timeBonus = isTimed ? xpBase : 0;
     
-    // Save to persistent progress
     if (selectedLessonId) {
       saveExamResult({
         lessonId: selectedLessonId,
@@ -109,12 +110,9 @@ const ExamPractice: React.FC<ExamPracticeProps> = ({ addXP, setView, saveExamRes
         </header>
 
         <div className="px-6 space-y-8">
-          {/* Timed Mode Toggle */}
           <div className="bg-slate-900 p-6 rounded-[2.5rem] text-white shadow-2xl flex justify-between items-center group">
             <div className="space-y-1">
-              <h3 className="font-black text-lg flex items-center gap-2">
-                ⏱️ Timed Mode
-              </h3>
+              <h3 className="font-black text-lg flex items-center gap-2">⏱️ Timed Mode</h3>
               <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest group-hover:text-emerald-400 transition-colors">Double XP & Real-time Pressure</p>
             </div>
             <button 
@@ -138,10 +136,10 @@ const ExamPractice: React.FC<ExamPracticeProps> = ({ addXP, setView, saveExamRes
                     <button
                       key={lesson.id}
                       onClick={() => startExam(lesson.id, lesson.title)}
-                      className="w-full bg-white p-5 rounded-[2rem] border-2 border-slate-100 flex items-center justify-between group active:scale-[0.98] transition-all hover:border-emerald-500 hover:shadow-xl hover:shadow-emerald-50/50"
+                      className="w-full bg-white p-5 rounded-[2rem] border-2 border-slate-100 flex items-center justify-between group active:scale-[0.98] transition-all hover:border-emerald-500 hover:shadow-xl"
                     >
                       <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-xl group-hover:bg-emerald-50 group-hover:scale-110 transition-all shadow-inner">
+                        <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-xl group-hover:bg-emerald-50 transition-all shadow-inner">
                           {lesson.icon || '📑'}
                         </div>
                         <div className="text-left">
@@ -221,9 +219,6 @@ const ExamPractice: React.FC<ExamPracticeProps> = ({ addXP, setView, saveExamRes
 
         <div className="flex-1 overflow-y-auto p-6 space-y-8 pb-32">
           <div className="bg-white p-10 rounded-[3rem] shadow-xl shadow-slate-200/50 border border-slate-100 relative group overflow-hidden">
-            <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none group-hover:scale-110 transition-transform">
-              <span className="text-8xl">🩺</span>
-            </div>
             <h3 className="text-xl font-bold text-slate-800 leading-relaxed text-center relative z-10">{q.question}</h3>
           </div>
 
@@ -235,13 +230,11 @@ const ExamPractice: React.FC<ExamPracticeProps> = ({ addXP, setView, saveExamRes
                   key={idx}
                   onClick={() => handleSelectOption(idx)}
                   className={`w-full p-6 rounded-[2.5rem] border-2 font-bold text-base text-left flex items-center gap-5 transition-all shadow-sm ${
-                    isSelected 
-                      ? 'bg-emerald-600 border-emerald-600 text-white scale-[1.02] shadow-xl shadow-emerald-100' 
-                      : 'bg-white border-slate-100 text-slate-700 hover:border-emerald-300 hover:shadow-md'
+                    isSelected ? 'bg-emerald-600 border-emerald-600 text-white scale-[1.02] shadow-xl' : 'bg-white border-slate-100 text-slate-700'
                   }`}
                 >
-                  <span className={`w-10 h-10 rounded-2xl border-2 flex items-center justify-center text-sm shrink-0 font-black shadow-inner ${
-                     isSelected ? 'bg-white/20 border-white/40' : 'bg-slate-50 border-slate-200 text-slate-400'
+                  <span className={`w-10 h-10 rounded-2xl border-2 flex items-center justify-center text-sm shrink-0 font-black ${
+                     isSelected ? 'bg-white/20 border-white/40' : 'bg-slate-50 border-slate-200'
                   }`}>
                     {String.fromCharCode(65 + idx)}
                   </span>
@@ -253,20 +246,11 @@ const ExamPractice: React.FC<ExamPracticeProps> = ({ addXP, setView, saveExamRes
         </div>
 
         <footer className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-lg bg-white/95 backdrop-blur-md p-6 flex justify-between border-t border-slate-100 z-[1100] pb-10">
-           <button 
-             disabled={currentIndex === 0}
-             onClick={() => setCurrentIndex(c => c - 1)}
-             className="text-xs font-black text-slate-400 disabled:opacity-20 uppercase tracking-[0.2em] px-4"
-           >
-             ← Back
-           </button>
+           <button disabled={currentIndex === 0} onClick={() => setCurrentIndex(c => c - 1)} className="text-xs font-black text-slate-400 disabled:opacity-20 px-4">← Back</button>
            <button 
              onClick={() => {
-               if (currentIndex < questions.length - 1) {
-                 setCurrentIndex(c => c + 1);
-               } else {
-                 finalizeExam();
-               }
+               if (currentIndex < questions.length - 1) setCurrentIndex(c => c + 1);
+               else finalizeExam();
              }}
              disabled={answers[currentIndex] === null}
              className={`px-10 py-5 rounded-[2rem] font-black text-xs uppercase tracking-widest shadow-xl transition-all ${
@@ -283,12 +267,11 @@ const ExamPractice: React.FC<ExamPracticeProps> = ({ addXP, setView, saveExamRes
   if (activeStep === 'RESULT') {
     const finalScore = calculateScore();
     const passed = finalScore >= 7;
-    const percentage = Math.round((finalScore / questions.length) * 100);
 
     return (
-      <div className="flex flex-col items-center justify-center min-h-full p-8 bg-slate-50 overflow-y-auto pb-32 animate-in zoom-in duration-500">
+      <div className="flex flex-col items-center justify-center min-h-full p-8 bg-slate-50 animate-in zoom-in duration-500 pb-32 overflow-y-auto">
         <div className={`w-36 h-36 rounded-[3.5rem] flex items-center justify-center text-7xl mb-10 shadow-2xl border-[12px] ${
-          passed ? 'bg-emerald-100 border-emerald-50 text-emerald-600 shadow-emerald-100 animate-bounce' : 'bg-amber-100 border-amber-50 text-amber-600'
+          passed ? 'bg-emerald-100 border-emerald-50 text-emerald-600 shadow-emerald-100' : 'bg-amber-100 border-amber-50 text-amber-600'
         }`}>
           {passed ? '🏆' : '📚'}
         </div>
@@ -302,50 +285,29 @@ const ExamPractice: React.FC<ExamPracticeProps> = ({ addXP, setView, saveExamRes
            <div className="bg-white p-6 rounded-[2.5rem] border-2 border-slate-100 shadow-sm text-center">
              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Score</p>
              <p className="text-3xl font-black text-slate-800">{finalScore}/10</p>
-             <p className="text-[10px] font-bold text-slate-300 mt-1">{percentage}% Accuracy</p>
            </div>
            <div className="bg-white p-6 rounded-[2.5rem] border-2 border-slate-100 shadow-sm text-center">
              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">XP Reward</p>
              <p className="text-3xl font-black text-emerald-600">+{finalScore * (isTimed ? 40 : 20)}</p>
-             <p className="text-[10px] font-bold text-emerald-300 mt-1">{isTimed ? 'x2 Timed Bonus' : 'Standard Reward'}</p>
            </div>
         </div>
 
         <div className="w-full max-w-sm space-y-4 px-4">
-          <button 
-            onClick={() => setActiveStep('SELECT')}
-            className="w-full bg-emerald-600 text-white py-6 rounded-[2.5rem] font-black text-lg shadow-2xl shadow-emerald-200 active:scale-95 transition-all"
-          >
-            🔄 Next Lesson
-          </button>
-          <button 
-            onClick={() => setView(AppView.DASHBOARD)}
-            className="w-full bg-white text-slate-500 border-2 border-slate-100 py-5 rounded-[2.5rem] font-black text-sm active:scale-95 transition-all"
-          >
-            🏠 Return Dashboard
-          </button>
+          <button onClick={() => setActiveStep('SELECT')} className="w-full bg-emerald-600 text-white py-6 rounded-[2.5rem] font-black text-lg shadow-2xl active:scale-95 transition-all">🔄 Next Lesson</button>
+          <button onClick={() => setView(AppView.DASHBOARD)} className="w-full bg-white text-slate-500 border-2 border-slate-100 py-5 rounded-[2.5rem] font-black text-sm active:scale-95 transition-all">🏠 Home</button>
         </div>
 
-        {/* Clinical Case Analysis Section */}
         <div className="mt-16 bg-white p-10 rounded-[3.5rem] border-2 border-slate-100 w-full max-w-sm shadow-xl">
-           <div className="flex items-center justify-between mb-8">
-              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Clinical Performance Analysis</h4>
-              <span className="text-[10px] font-black text-emerald-500 uppercase">Review All</span>
-           </div>
+           <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-8">Performance Analysis</h4>
            <div className="space-y-6">
              {questions.map((q, idx) => (
-               <div key={idx} className="flex gap-4 text-left group">
-                  <div className={`w-10 h-10 rounded-2xl flex items-center justify-center text-lg shrink-0 border-2 transition-colors ${answers[idx] === q.correctIndex ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-red-50 border-red-100 text-red-600'}`}>
+               <div key={idx} className="flex gap-4 text-left border-b border-slate-50 pb-4 last:border-none">
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm shrink-0 border ${answers[idx] === q.correctIndex ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
                     {answers[idx] === q.correctIndex ? '✓' : '✕'}
                   </div>
-                  <div className="min-w-0 flex-1 border-b border-slate-50 pb-4 group-last:border-none">
-                    <p className="text-xs font-black text-slate-800 mb-1 leading-snug line-clamp-2">{q.question}</p>
-                    <div className="flex flex-col gap-1">
-                      <p className="text-[10px] text-slate-400 font-medium leading-relaxed italic line-clamp-2">{q.explanation}</p>
-                      {answers[idx] !== q.correctIndex && (
-                        <p className="text-[9px] text-emerald-600 font-black uppercase">Correct: {q.options[q.correctIndex]}</p>
-                      )}
-                    </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-black text-slate-800 mb-1 leading-snug">{q.question}</p>
+                    <p className="text-[10px] text-slate-400 italic leading-relaxed">{q.explanation}</p>
                   </div>
                </div>
              ))}
