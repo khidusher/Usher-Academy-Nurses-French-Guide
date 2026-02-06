@@ -28,8 +28,9 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
   const [cachedItems, setCachedItems] = useState<Set<string>>(new Set());
   const [individualDownloading, setIndividualDownloading] = useState<Set<string>>(new Set());
   
-  // Audio context ref to reuse if needed or manage lifecycle
+  // Ref to track the active audio context and source
   const audioCtxRef = useRef<AudioContext | null>(null);
+  const currentSourceRef = useRef<AudioBufferSourceNode | null>(null);
 
   // Quiz State
   const [isQuizMode, setIsQuizMode] = useState(false);
@@ -56,11 +57,24 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
     checkCache();
     
     return () => {
+      stopCurrentAudio();
       if (audioCtxRef.current) {
         audioCtxRef.current.close();
       }
     };
   }, []);
+
+  const stopCurrentAudio = () => {
+    if (currentSourceRef.current) {
+      try {
+        currentSourceRef.current.stop();
+      } catch (e) {
+        // Source might already be stopped
+      }
+      currentSourceRef.current = null;
+    }
+    setIsSpeaking(false);
+  };
 
   const generateQuiz = () => {
     const shuffled = [...VOCABULARY_DATA].sort(() => 0.5 - Math.random());
@@ -90,6 +104,7 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
   };
 
   const handleNext = () => {
+    stopCurrentAudio();
     setIsFlipped(false);
     if (currentIndex < VOCABULARY_DATA.length - 1) {
       setCurrentIndex(prev => prev + 1);
@@ -156,11 +171,15 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
 
   const playAudio = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isSpeaking || isLoadingAudio) return;
+    if (isSpeaking) {
+      stopCurrentAudio();
+      return;
+    }
+    if (isLoadingAudio) return;
     
     const card = VOCABULARY_DATA[currentIndex];
     
-    // Resume context on user gesture to avoid browser blocks
+    // Ensure we have an active audio context
     if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
       audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
     }
@@ -174,16 +193,12 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
 
       let base64Audio = await audioCache.get(card.french);
       
-      // If not in cache and offline, fail early
-      if (!base64Audio && !navigator.onLine) {
-        throw new Error("Offline and no cached audio.");
-      }
-
-      // Fetch if not cached
       if (!base64Audio) {
+        if (!navigator.onLine) {
+          throw new Error("Offline and no cached audio.");
+        }
         base64Audio = await getSpeech(card.french);
         if (base64Audio) {
-          // Auto-cache the successfully fetched audio
           await audioCache.set(card.french, base64Audio);
           setCachedItems(prev => {
             const next = new Set(prev);
@@ -194,37 +209,37 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
       }
       
       if (base64Audio) {
-        const audioBuffer = await decodeAudioData(decode(base64Audio), audioCtx, 24000, 1);
+        const bytes = decode(base64Audio);
+        const audioBuffer = await decodeAudioData(bytes, audioCtx, 24000, 1);
         const source = audioCtx.createBufferSource();
         source.buffer = audioBuffer;
         source.connect(audioCtx.destination);
         
         source.onended = () => {
-          setIsSpeaking(false);
+          if (currentSourceRef.current === source) {
+            setIsSpeaking(false);
+            currentSourceRef.current = null;
+          }
         };
 
-        // Transition states: Stop loading, Start speaking
+        currentSourceRef.current = source;
         setIsLoadingAudio(false);
         setIsSpeaking(true);
         source.start(0);
       } else {
-        throw new Error("Audio generation returned no data.");
+        throw new Error("Audio data generation failed.");
       }
     } catch (error) {
       console.error("Audio Playback Error:", error);
       setIsLoadingAudio(false);
       setIsSpeaking(false);
-      // Reset context if it broke
-      if (audioCtx.state !== 'closed') {
-        await audioCtx.close();
-        audioCtxRef.current = null;
-      }
+      // We don't necessarily close the context here unless it's strictly required
     }
   };
 
   const downloadAllAudio = async () => {
     if (!navigator.onLine) {
-      alert("Please connect to the internet to download the full clinic audio pack.");
+      alert("Please connect to the internet to download the full clinical audio pack.");
       return;
     }
 
@@ -429,8 +444,8 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
                     </button>
                     
                     <div className="flex flex-col items-center gap-1">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                        {isSpeaking ? 'Now Playing...' : isLoadingAudio ? 'Fetching Audio...' : 'Listen to Pronunciation'}
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">
+                        {isSpeaking ? 'Playing Pronunciation' : isLoadingAudio ? 'Preparing Audio...' : 'Tap to Hear Pronunciation'}
                       </p>
                       {isCurrentlyCached && !isSpeaking && !isLoadingAudio && (
                         <span className="text-[9px] font-bold text-emerald-500 uppercase tracking-tight">Stored Locally ✓</span>
@@ -452,7 +467,7 @@ const Vocabulary: React.FC<VocabularyProps> = ({ addXP, setView }) => {
                 onClick={handleNext} 
                 className="w-full bg-slate-800 text-white py-5 rounded-[2.5rem] font-black text-lg shadow-xl shadow-slate-200 active:scale-95 transition-all flex items-center justify-center gap-3"
               >
-                {currentIndex === VOCABULARY_DATA.length - 1 ? 'Unlock Assessment 🔓' : 'Next Word ▶️'}
+                {currentIndex === VOCABULARY_DATA.length - 1 ? 'Start Assessment 🔓' : 'Next Word ▶️'}
               </button>
             </div>
           </div>

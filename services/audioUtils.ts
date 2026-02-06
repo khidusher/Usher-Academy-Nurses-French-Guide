@@ -4,7 +4,7 @@
  * Strips whitespace and potential metadata prefixes for resilience.
  */
 export function decode(base64: string): Uint8Array {
-  // Remove any potential whitespace or non-base64 characters added by some environments
+  // Remove any potential whitespace or non-base64 characters
   const cleanBase64 = base64.replace(/[^A-Za-z0-9+/=]/g, "");
   const binaryString = atob(cleanBase64);
   const len = binaryString.length;
@@ -36,7 +36,8 @@ export async function decodeAudioData(
   sampleRate: number = 24000,
   numChannels: number = 1
 ): Promise<AudioBuffer> {
-  const dataInt16 = new Int16Array(data.buffer);
+  // Use byteOffset and byteLength to handle views correctly
+  const dataInt16 = new Int16Array(data.buffer, data.byteOffset, data.byteLength / 2);
   const frameCount = dataInt16.length / numChannels;
   const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
 
