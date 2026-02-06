@@ -38,6 +38,7 @@ export async function decodeAudioData(
   numChannels: number = 1
 ): Promise<AudioBuffer> {
   // Ensure we are reading 16-bit integers (2 bytes per sample)
+  // We use data.buffer, data.byteOffset, and data.byteLength to ensure we only read the specific view
   const dataInt16 = new Int16Array(data.buffer, data.byteOffset, data.byteLength / 2);
   const frameCount = dataInt16.length / numChannels;
   const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
