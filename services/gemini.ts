@@ -15,14 +15,14 @@ export const getGeminiResponse = async (prompt: string, systemInstruction: strin
 };
 
 const GHANAIAN_CLINICAL_SCENARIOS = [
-  "Maternal health triage in a rural clinic in the Volta Region.",
-  "Malaria rapid diagnostic testing (RDT) procedures and patient counseling in Twi/French.",
-  "Post-operative care for a patient following a caesarean section at Korle-Bu.",
-  "Emergency response to a road traffic accident victim presenting with shock.",
-  "Diabetes management education for an elderly patient in an outpatient department.",
-  "Pediatric immunization schedule communication and vaccine storage protocols.",
-  "Hypertension screening and lifestyle advice for a patient in a community health setting.",
-  "Infection prevention and control (IPC) protocols during an infectious disease outbreak.",
+  "Outpatient triage at Ridge Hospital, Accra.",
+  "Maternal health counseling in a rural CHPS compound.",
+  "Post-operative monitoring after a surgery at Komfo Anokye Teaching Hospital.",
+  "Emergency dehydration treatment (ORS/IV) for a pediatric patient.",
+  "Communicating malaria prevention in a community health outreach.",
+  "Nursing ethics and patient confidentiality in a busy ward.",
+  "Managing patient records and vital signs reporting in French.",
+  "Explaining drug dosages and side effects to a Francophone patient."
 ];
 
 export const generateExamQuestions = async (lessonTopic: string) => {
@@ -31,16 +31,17 @@ export const generateExamQuestions = async (lessonTopic: string) => {
 
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
-    contents: `Generate EXACTLY 10 professional clinical MCQs for the Ghana Nursing Board Exam Prep.
-    Lesson Topic: ${lessonTopic}
+    contents: `Generate EXACTLY 10 multiple-choice questions (MCQs) for a Ghana Nursing Board French Exam Prep.
+    Primary Theme: ${lessonTopic}
     Clinical Scenario Base: ${randomScenario}
     
     Requirements:
-    1. EXACTLY 10 questions.
-    2. Language: Questions in professional French. Options in French (with English translations in brackets where necessary).
-    3. Clinical Context: Scenarios MUST reflect Ghanaian nursing standards (MOH/NMC guidelines).
-    4. Structure: Each question must have 4 options (A, B, C, D) and ONE correct answer.
-    5. Explanations: Provide a 'Clinical Pearl' explanation (max 150 chars).`,
+    1. COUNT: Exactly 10 questions.
+    2. CONTENT: Focus on vocabulary, grammar (vous-form, present tense), and patient communication relative to the lesson.
+    3. LANGUAGE: Questions in professional French. Options in French (include English translation in brackets).
+    4. OPTIONS: Exactly 4 options (A, B, C, D) per question.
+    5. FEEDBACK: Provide a short 'Clinical Pearl' explanation for the correct answer.
+    6. TONE: Professional, clinical, and encouraging.`,
     config: {
       responseMimeType: "application/json",
       responseSchema: {
@@ -61,6 +62,5 @@ export const generateExamQuestions = async (lessonTopic: string) => {
   });
   
   const parsed = JSON.parse(response.text);
-  // Safety check to ensure exactly 10 or at least high volume
   return Array.isArray(parsed) ? parsed.slice(0, 10) : [];
 };

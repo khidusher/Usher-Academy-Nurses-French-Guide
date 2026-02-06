@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { AppView, UserProgress, User } from './types.ts';
+import { AppView, UserProgress, User, ExamRecord } from './types.ts';
 import { NAVIGATION_ITEMS, LEVELS } from './constants.tsx';
 import Dashboard from './views/Dashboard.tsx';
 import Vocabulary from './views/Vocabulary.tsx';
@@ -80,6 +80,18 @@ const App: React.FC = () => {
     setProgress(prev => ({ ...prev, xp: prev.xp + amount }));
   };
 
+  const saveExamResult = (record: ExamRecord) => {
+    setProgress(prev => {
+      // Keep only the best record for each lesson or keep a history? 
+      // User requested "saved per lesson", usually means historical or latest.
+      // We'll append it for now as per "examRecords: ExamRecord[]"
+      return {
+        ...prev,
+        examRecords: [record, ...prev.examRecords].slice(0, 50) // Keep last 50 attempts
+      };
+    });
+  };
+
   const markAsSupporter = (reference: string) => {
     setProgress(prev => ({
       ...prev,
@@ -114,7 +126,7 @@ const App: React.FC = () => {
       case AppView.DASHBOARD: return <Dashboard user={user} progress={progress} setView={setCurrentView} onLogout={handleLogout} />;
       case AppView.VOCABULARY: return <Vocabulary addXP={addXP} setView={setCurrentView} />;
       case AppView.GRAMMAR: return <Grammar addXP={addXP} setView={setCurrentView} />;
-      case AppView.EXAM_PRACTICE: return <ExamPractice addXP={addXP} setView={setCurrentView} />;
+      case AppView.EXAM_PRACTICE: return <ExamPractice addXP={addXP} setView={setCurrentView} saveExamResult={saveExamResult} />;
       case AppView.LEADERBOARD: return <Leaderboard user={user} progress={progress} />;
       case AppView.SUPPORT: return <Support progress={progress} onSupport={markAsSupporter} />;
       case AppView.PROFILE: return <Profile user={user} progress={progress} setView={setCurrentView} onLogout={handleLogout} />;
