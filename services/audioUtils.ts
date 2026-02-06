@@ -1,12 +1,13 @@
 
 /**
  * Manual Base64 decoding following Gemini API requirements.
- * Strips whitespace and potential metadata prefixes for resilience.
+ * Robustly handles potential data prefixes and whitespace.
  */
 export function decode(base64: string): Uint8Array {
-  // Remove any potential whitespace or non-base64 characters
-  const cleanBase64 = base64.replace(/[^A-Za-z0-9+/=]/g, "");
-  const binaryString = atob(cleanBase64);
+  // Remove data URL prefix if present (e.g. data:audio/pcm;base64,)
+  const base64Clean = base64.includes(',') ? base64.split(',')[1] : base64;
+  // Remove non-base64 characters (whitespace, etc)
+  const binaryString = atob(base64Clean.replace(/\s/g, ''));
   const len = binaryString.length;
   const bytes = new Uint8Array(len);
   for (let i = 0; i < len; i++) {
@@ -36,7 +37,7 @@ export async function decodeAudioData(
   sampleRate: number = 24000,
   numChannels: number = 1
 ): Promise<AudioBuffer> {
-  // Use byteOffset and byteLength to handle views correctly
+  // Ensure we are reading 16-bit integers (2 bytes per sample)
   const dataInt16 = new Int16Array(data.buffer, data.byteOffset, data.byteLength / 2);
   const frameCount = dataInt16.length / numChannels;
   const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
@@ -44,6 +45,7 @@ export async function decodeAudioData(
   for (let channel = 0; channel < numChannels; channel++) {
     const channelData = buffer.getChannelData(channel);
     for (let i = 0; i < frameCount; i++) {
+      // Normalize Int16 (-32768 to 32767) to Float32 (-1.0 to 1.0)
       channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
     }
   }

@@ -1,11 +1,7 @@
 
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 
-// Guideline: Always use process.env.API_KEY directly in the constructor.
-// Removed local API_KEY constant to comply with best practices.
-
 export const getGeminiResponse = async (prompt: string, systemInstruction: string) => {
-  // Use process.env.API_KEY directly in the client constructor
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
@@ -19,11 +15,10 @@ export const getGeminiResponse = async (prompt: string, systemInstruction: strin
 };
 
 export const generateExamQuestions = async (topic: string) => {
-  // Use process.env.API_KEY directly in the client constructor
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
-    contents: `Generate 5 multiple choice questions for a Ghanaian nursing student learning French. Topic: ${topic}. Format the output as JSON.`,
+    contents: `Generate 5 multiple choice questions for a Ghanaian nursing student learning French. Topic: ${topic}. Format as JSON.`,
     config: {
       responseMimeType: "application/json",
       responseSchema: {
@@ -33,10 +28,7 @@ export const generateExamQuestions = async (topic: string) => {
           properties: {
             id: { type: Type.STRING },
             question: { type: Type.STRING },
-            options: { 
-              type: Type.ARRAY, 
-              items: { type: Type.STRING } 
-            },
+            options: { type: Type.ARRAY, items: { type: Type.STRING } },
             correctIndex: { type: Type.INTEGER },
             explanation: { type: Type.STRING }
           },
@@ -49,11 +41,10 @@ export const generateExamQuestions = async (topic: string) => {
 };
 
 export const getSpeech = async (text: string) => {
-  // Use process.env.API_KEY directly in the client constructor
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const response = await ai.models.generateContent({
     model: "gemini-2.5-flash-preview-tts",
-    contents: [{ parts: [{ text: `Pronounce clearly in French: ${text}` }] }],
+    contents: [{ parts: [{ text: `Say this clearly in French: ${text}` }] }],
     config: {
       responseModalities: [Modality.AUDIO],
       speechConfig: {
@@ -63,6 +54,5 @@ export const getSpeech = async (text: string) => {
       },
     },
   });
-  // Extracting audio bytes from candidates parts
   return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
 };
